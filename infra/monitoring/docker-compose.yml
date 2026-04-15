@@ -1,0 +1,93 @@
+services:
+  grafana:
+    image: grafana/grafana:12.4
+    container_name: grafana
+    restart: unless-stopped
+    ports:
+      - 3000:3000
+    environment:
+      - GF_INSTALL_PLUGINS=victoriametrics-metrics-datasource,victoriametrics-logs-datasource
+      - GF_SERVER_CORS_ALLOW_ORIGIN=chrome-extension://eocahbefmnojcbnggklkhfolcekoobkd, http://grafana.homelab
+      - GF_SECURITY_ALLOW_EMBEDDING=true
+      - GF_SERVER_ROOT_URL=http://grafana.homelab
+    volumes:
+      - /mnt/docker-data/infra/grafana:/var/lib/grafana
+      - ./provisioning:/etc/grafana/provisioning
+    networks:
+      - dockernet
+      
+  victoriametrics:
+    image: victoriametrics/victoria-metrics:v1.138.0
+    container_name: victoria-metrics
+    ports:
+      - 8428:8428
+    volumes:
+      - /mnt/docker-data/infra/victoria-metrics:/storage
+    command:
+      - "--storageDataPath=/storage"
+      - "--retentionPeriod=7d"
+    restart: always
+    networks:
+      - dockernet
+    
+  victorialogs:
+    image: victoriametrics/victoria-logs:v1.48.0
+    container_name: victoria-logs
+    ports:
+      - 9428:9428
+    volumes:
+      - /mnt/docker-data/infra/victoria-logs:/storage
+    command:
+      - "--storageDataPath=/storage"
+      - "--retentionPeriod=7d" 
+    restart: always
+    networks:
+      - dockernet
+
+  alloy:
+    image: grafana/alloy:v1.14.1
+    container_name: alloy
+    user: "0:0"
+    cap_add:
+      - SYS_ADMIN
+      - SYS_PTRACE
+    security_opt:
+      - no-new-privileges
+    devices:
+      - /dev/kmsg
+    ports:
+      - 12345:12345
+      - 4318:4318
+    volumes:
+      - ./config.alloy:/etc/alloy/config.alloy:ro
+      # Docker socket
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      # Logs
+      - /var/log:/var/log:ro
+      - /etc/machine-id:/etc/machine-id:ro
+      # cAdvisor integration — host filesystem access (all read-only)
+      - /:/rootfs:ro
+      - /sys:/sys:ro
+      - /var/lib/docker:/var/lib/docker:ro
+      - /dev/disk:/dev/disk:ro
+      - /proc:/proc:ro
+      # Alloy data
+      - /mnt/docker-data/infra/alloy:/var/lib/alloy/data
+    entrypoint:
+      - /usr/bin/alloy
+      - run
+      - /etc/alloy/config.alloy
+      - --storage.path=/var/lib/alloy/data
+      - --server.http.listen-addr=0.0.0.0:12345
+    restart: always
+    environment:
+      - HOST_HOSTNAME=${HOSTNAME}
+    networks:
+      - dockernet
+    depends_on:
+      - victoriametrics
+      - victorialogs
+      
+networks:
+  dockernet:
+    external: true

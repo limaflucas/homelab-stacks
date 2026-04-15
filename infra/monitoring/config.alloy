@@ -1,0 +1,161 @@
+// ═══════════════════════════════════════════════════════════
+//  Grafana Alloy — Corrected Pipeline for Host Filtering
+// ═══════════════════════════════════════════════════════════
+
+// 1. RELABEL COMPONENT (The "Middleman")
+// This component adds the 'host' label to any metric it receives
+prometheus.relabel "add_host_label" {
+  forward_to = [prometheus.remote_write.vm.receiver]
+
+  rule {
+    target_label = "host"
+    replacement  = sys.env("HOST_HOSTNAME")
+  }
+}
+
+// 2. CONTAINER METRICS — Exporter
+prometheus.exporter.cadvisor "containers" {
+  docker_only              = true 
+  store_container_labels   = true
+  enabled_metrics          = ["cpu", "memory", "disk", "diskIO", "network", "oom_event"]
+}
+
+// 3. CONTAINER METRICS — Scrape
+prometheus.scrape "cadvisor" {
+  targets    = prometheus.exporter.cadvisor.containers.targets
+  // Send to the relabel component instead of directly to VM
+  forward_to = [prometheus.relabel.add_host_label.receiver]
+  scrape_interval = "30s"
+  job_name        = "cadvisor"
+}
+
+// 4. HOST SYSTEM METRICS — Exporter
+prometheus.exporter.unix "host" {
+  rootfs_path = "/rootfs"
+  sysfs_path  = "/sys"
+  procfs_path = "/proc"
+
+  filesystem {
+    mount_points_exclude = "^/(sys|proc|dev|host|etc|rootfs/var/lib/docker)($$|/)"
+    fs_types_exclude     = "^(autofs|binfmt_misc|bpf|cgroup2?|configfs|debugfs|devpts|devtmpfs|fusectl|hugetlbfs|iso9660|mqueue|nsfs|overlay|proc|procfs|pstore|rpc_pipefs|securityfs|selinuxfs|squashfs|sysfs|tracefs)$$"
+  }
+}
+
+// 5. HOST SYSTEM METRICS — Scrape
+prometheus.scrape "node" {
+  targets    = prometheus.exporter.unix.host.targets
+  // Send to the relabel component instead of directly to VM
+  forward_to = [prometheus.relabel.add_host_label.receiver]
+  scrape_interval = "15s"
+  job_name        = "node-exporter"
+}
+
+// 6. ALLOY SELF-MONITORING
+prometheus.scrape "alloy_self" {
+  targets = [{
+    __address__ = "localhost:12345",
+    job         = "alloy",
+  }]
+  forward_to      = [prometheus.relabel.add_host_label.receiver]
+  scrape_interval = "15s"
+}
+
+// 7. DOCKER LOGS
+discovery.docker "containers" {
+  host             = "unix:///var/run/docker.sock"
+  refresh_interval = "5s"
+}
+
+discovery.relabel "container_logs" {
+  targets = discovery.docker.containers.targets
+  rule {
+    source_labels = ["__meta_docker_container_name"]
+    regex         = "/(.*)"
+    target_label  = "container"
+  }
+  rule {
+    source_labels = ["__meta_docker_container_image"]
+    target_label  = "image"
+  }
+}
+
+loki.source.docker "container_logs" {
+  host       = "unix:///var/run/docker.sock"
+  targets    = discovery.relabel.container_logs.output
+  forward_to = [loki.write.vl.receiver]
+}
+
+// 8. SYSTEM LOGS
+local.file_match "system_logs" {
+  path_targets = [{
+    __path__ = "/var/log/**/*.log",
+    job      = "system-logs",
+    host     = sys.env("HOST_HOSTNAME"),
+  }]
+}
+
+loki.source.file "system_logs" {
+  targets    = local.file_match.system_logs.targets
+  forward_to = [loki.write.vl.receiver]
+}
+
+// 9. WRITE DESTINATIONS
+prometheus.remote_write "vm" {
+  endpoint {
+    url = "http://victoriametrics:8428/api/v1/write"
+  }
+}
+
+loki.write "vl" {
+  endpoint {
+    url = "http://victorialogs:9428/insert/loki/api/v1/push"
+  }
+}
+
+// --- 1. RECEIVE PROXMOX + LXC OTLP DATA ---
+otelcol.receiver.otlp "proxmox_pve" {
+  http {
+    endpoint = "0.0.0.0:4318"
+  }
+
+  output {
+    metrics = [otelcol.exporter.prometheus.to_vm.input]
+    logs    = [otelcol.processor.transform.ci3_logs.input]
+  }
+}
+
+// --- 2. BRIDGE (OTel Metrics -> Prometheus) ---
+otelcol.exporter.prometheus "to_vm" {
+  forward_to = [prometheus.remote_write.vm.receiver]
+}
+
+// --- 3. EXPORT LOGS DIRECTLY TO VICTORIALOGS VIA OTLP ---
+otelcol.exporter.otlphttp "to_vl_ci3" {
+  client {
+    endpoint = "http://victorialogs:9428/insert/opentelemetry"
+    tls {
+      insecure = true
+    }
+  }
+}
+
+// --- 4. PROCESS OTLP LOGS ---
+otelcol.processor.transform "ci3_logs" {
+  error_mode = "ignore"
+
+  log_statements {
+    context = "log"
+    statements = [
+      "set(attributes[\"_msg\"], body)",
+      "set(attributes[\"app\"], attributes[\"app\"])",
+      "set(attributes[\"host\"], attributes[\"host\"])",
+      "set(attributes[\"level\"], attributes[\"level\"])",
+      "delete_key(attributes, \"log.file.name\")",
+      "delete_key(attributes, \"timestamp\")",
+    ]
+  }
+
+  output {
+    logs = [otelcol.exporter.otlphttp.to_vl_ci3.input]
+  }
+}

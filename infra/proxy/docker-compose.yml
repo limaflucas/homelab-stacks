@@ -1,0 +1,58 @@
+services:
+  npm:
+    image: 'jc21/nginx-proxy-manager:2.14.0'
+    container_name: npm
+    restart: unless-stopped
+    ports:
+      # These ports are in format <host-port>:<container-port>
+      - '80:80' # Public HTTP Port
+      - '443:443' # Public HTTPS Port
+      - '81:81' # Admin Web Port
+      # Add any other Stream port you want to expose
+      # - '21:21' # FTP
+    secrets:
+      - db_password
+      - db_user
+    environment:
+      TZ: "America/Halifax"
+      # Postgres parameters:
+      DB_POSTGRES_HOST: 'npm-pgsql'
+      DB_POSTGRES_PORT: '5432'
+      DB_POSTGRES_USER__FILE: /run/secrets/db_user
+      DB_POSTGRES_PASSWORD__FILE: /run/secrets/db_password
+      DB_POSTGRES_NAME: 'npm'
+      # Uncomment this if IPv6 is not enabled on your host
+      DISABLE_IPV6: 'true'
+    volumes:
+      - /mnt/docker-data/infra/npm:/data
+      - /mnt/docker-data/infra/letsencrypt:/etc/letsencrypt
+    networks:
+      - dockernet
+
+
+  npm-pgsql:
+    image: postgres:17
+    container_name: npm_pgsql
+    restart: unless-stopped
+    secrets:
+      - db_password
+      - db_user
+    environment:
+      TZ: "America/Halifax"
+      POSTGRES_USER_FILE: /run/secrets/db_user
+      POSTGRES_PASSWORD_FILE: /run/secrets/db_password
+      POSTGRES_DB: 'npm'
+    volumes:
+      - /mnt/docker-data/infra/postgresql:/var/lib/postgresql/data
+    networks:
+      - dockernet
+
+networks:
+  dockernet: 
+    external: true
+
+secrets:
+  db_password:
+    file: ./secrets/db_password.txt
+  db_user:
+    file: ./secrets/db_user.txt

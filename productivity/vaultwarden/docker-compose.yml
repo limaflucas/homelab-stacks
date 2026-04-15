@@ -1,0 +1,54 @@
+services:
+  vaultwarden-pgsql:
+    image: postgres:15-alpine
+    container_name: vaultwarden-pgsql
+    restart: always
+    secrets:
+      - db_password
+      - db_user
+    environment:
+      POSTGRES_USER_FILE: /run/secrets/db_user
+      POSTGRES_PASSWORD_FILE: /run/secrets/db_password
+      POSTGRES_DB: vaultwarden
+    volumes:
+      - ./data/postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U vaultwarden -d vaultwarden" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - dockernet
+
+  vaultwarden:
+    image: vaultwarden/server:latest
+    container_name: vaultwarden
+    restart: always
+    secrets:
+      - db_password
+      - db_user
+    entrypoint: >
+      /bin/sh -c "
+      export DATABASE_URL=postgresql://$$(cat /run/secrets/db_user):$$(cat /run/secrets/db_password)@vaultwarden-pgsql:5432/vaultwarden &&
+      /vaultwarden"
+    environment:
+      - SIGNUPS_ALLOWED=true
+    volumes:
+      - ./data/vaultwarden:/data
+    ports:
+      - "8080:80"
+    depends_on:
+      vaultwarden-pgsql:
+        condition: service_healthy
+    networks:
+      - dockernet
+
+networks:
+  dockernet:
+    external: true
+
+secrets:
+  db_password:
+    file: ./secrets/db_password.txt
+  db_user:
+    file: ./secrets/db_user.txt
