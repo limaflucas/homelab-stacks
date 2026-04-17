@@ -11,7 +11,7 @@ services:
       POSTGRES_PASSWORD_FILE: /run/secrets/db_password
       POSTGRES_DB: vaultwarden
     volumes:
-      - /mnt/docker-data/productivity/vaultwarden-pgsql:/var/lib/postgresql/data
+      - /mnt/docker-data/security/vaultwarden-pgsql:/var/lib/postgresql/data
     healthcheck:
       test: [ "CMD-SHELL", "pg_isready -U vaultwarden -d vaultwarden" ]
       interval: 10s
@@ -32,7 +32,7 @@ services:
     environment:
       - SIGNUPS_ALLOWED=true
     volumes:
-      - /mnt/docker-data/productivity/vaultwarden:/data
+      - /mnt/docker-data/security/vaultwarden:/data
     ports:
       - "8080:80"
     depends_on:
