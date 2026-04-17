@@ -23,10 +23,10 @@ Komodo is split into Core and Periphery. In this project:
     ```bash
     cd infra/management
     ```
-3.  Create a `.env` file for the Komodo database credentials:
+3.  Create a `komodo.env` file for the Komodo database credentials:
     ```bash
-    echo "KOMODO_DATABASE_USERNAME=root_user" > .env
-    echo "KOMODO_DATABASE_PASSWORD=your_secure_db_password" >> .env
+    echo "KOMODO_DATABASE_USERNAME=root_user" > komodo.env
+    echo "KOMODO_DATABASE_PASSWORD=your_secure_db_password" >> komodo.env
     ```
 4.  Start the container:
     ```bash
