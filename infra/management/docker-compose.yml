@@ -5,7 +5,7 @@ services:
     restart: unless-stopped
     ports:
       - "9120:9120"
-    env_file: .env
+    env_file: comodo.env
     environment:
       KOMODO_DATABASE_ADDRESS: mongodb:27017
     volumes:
