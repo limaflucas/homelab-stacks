@@ -18,6 +18,22 @@ services:
       - command: update-ca-certificates && core
         user: root
 
+  komodo-periphery:
+    image: ghcr.io/moghtech/komodo-periphery:latest
+    container_name: komodo-periphery
+    init: true
+    restart: unless-stopped
+    env_file: komodo.env
+    volumes:
+      - /mnt/docker-data/infra/periphery/keys:/config/keys
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /proc:/proc
+      - /etc/komodo:/etc/komodo
+    networks:
+      - dockernet
+    depends_on:
+      - komodo-core
+
 networks:
   dockernet:
     external: true
