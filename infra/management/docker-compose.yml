@@ -9,9 +9,12 @@ services:
     volumes:
       - /mnt/docker-data/infra/komodo/keys:/config/keys
       - /mnt/docker-data/infra/komodo/backups:/backups
-      - ./certs:/usr/local/share/ca-certificates
+      - ./certs/authelia.crt:/usr/local/share/ca-certificates/authelia.crt:ro
     networks:
       - dockernet
+    post_start:
+      - command: update-ca-certificates
+        user: root
 
 networks:
   dockernet:

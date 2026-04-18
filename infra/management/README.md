@@ -23,11 +23,25 @@ Komodo is split into Core and Periphery. In this project:
     ```bash
     cd infra/management
     ```
-3.  Create a `komodo.env` file for the Komodo database credentials:
+3.  Create a `komodo.env` file for the Komodo configuration and credentials:
     ```bash
-    echo "KOMODO_DATABASE_USERNAME=root_user" > komodo.env
-    echo "KOMODO_DATABASE_PASSWORD=your_secure_db_password" >> komodo.env
+    cat <<EOF > komodo.env
+    KOMODO_DATABASE_URI=mongodb://komodo:password@mongodb:27017/komodo?authSource=komodo
+    TZ=America/Halifax
+
+    KOMODO_FIRST_SERVER_NAME=Homelab
+    KOMODO_HOST=https://komodo.homelab
+    KOMODO_LOCAL_AUTH=false
+
+    ## OIDC Login
+    KOMODO_OIDC_ENABLED=true
+    KOMODO_OIDC_PROVIDER=https://authelia.homelab
+    KOMODO_OIDC_USE_FULL_EMAIL=true
+    KOMODO_OIDC_CLIENT_ID=komodo
+    KOMODO_OIDC_CLIENT_SECRET=SECRET
+    EOF
     ```
+    *Note: Replace `password`, `SECRET`, and URLs as necessary for your environment.*
 4.  Start the container:
     ```bash
     docker compose up -d

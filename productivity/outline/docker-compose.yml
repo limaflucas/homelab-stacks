@@ -16,12 +16,8 @@ services:
         condition: service_healthy
       outline-minio:
         condition: service_started
-      outline-authelia:
-        condition: service_started
     volumes:
       - /mnt/docker-data/productivity/outline:/var/lib/outline/data
-      # Required for self-signed certificates
-      # cat ./certs/outline-pgsql.crt ./certs/outline-authelia.crt > ./certs/combined-ca.crt
       - ./certs/combined-ca.crt:/etc/ssl/certs/combined-ca.crt
     environment:
       - NODE_EXTRA_CA_CERTS=/etc/ssl/certs/combined-ca.crt
