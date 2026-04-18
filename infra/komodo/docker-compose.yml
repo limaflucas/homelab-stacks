@@ -11,7 +11,7 @@ services:
     volumes:
       - /mnt/docker-data/infra/komodo/keys:/config/keys
       - /mnt/docker-data/infra/komodo/backups:/backups
-      - ./certs/authelia.crt:/usr/local/share/ca-certificates/authelia.crt:ro
+      - ./certs/homelab-root-ca.crt:/usr/local/share/ca-certificates/homelab-root-ca.crt:ro
     networks:
       - dockernet
     post_start:
