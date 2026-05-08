@@ -1,6 +1,6 @@
 services:
   komodo-core:
-    image: ghcr.io/moghtech/komodo-core:2.1
+    image: ghcr.io/moghtech/komodo-core:2
     container_name: komodo-core
     restart: unless-stopped
     ports:
@@ -22,7 +22,7 @@ services:
         user: root
 
   komodo-periphery:
-    image: ghcr.io/moghtech/komodo-periphery:2.1
+    image: ghcr.io/moghtech/komodo-periphery:2
     container_name: komodo-periphery
     init: true
     restart: unless-stopped

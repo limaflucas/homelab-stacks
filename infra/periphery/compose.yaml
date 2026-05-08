@@ -1,0 +1,22 @@
+services:
+  periphery:
+    image: ghcr.io/moghtech/komodo-periphery:2
+    container_name: periphery
+    init: true
+    restart: unless-stopped
+    environment:
+      PERIPHERY_CORE_ADDRESS: https://komodo.homelab
+      PERIPHERY_CONNECT_AS: ${PERIPHERY_CONNECT_AS}
+      PERIPHERY_ONBOARDING_KEY: ${ONBOARDING_KEY}
+      PERIPHERY_CORE_PUBLIC_KEYS: file:/config/keys/core.pub
+      PERIPHERY_ROOT_DIRECTORY: /etc/komodo
+      PERIPHERY_INCLUDE_DISK_MOUNTS: /etc/hostname
+    post_start:
+      - command: update-ca-certificates
+        user: root
+    volumes:
+      - /mnt/docker-data/infra/periphery/keys:/config/keys
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /proc:/proc
+      - /mnt/docker-data/apps/komodo/etc/komodo:/etc/komodo
+      - /mnt/docker-data/ca-certificates/root_ca.crt:/usr/local/share/ca-certificates/homelab-root-ca.crt
