@@ -1,7 +1,6 @@
 services:
   step-ca:
     image: smallstep/step-ca:latest
-    container_name: step-ca
     ports:
       - "9000:9000"
     volumes:
@@ -17,7 +16,7 @@ services:
     secrets:
       - step_ca_password
     networks:
-      - default
+      - infra
     deploy:
       replicas: 1
       placement:
@@ -29,7 +28,7 @@ services:
           memory: 128M
 
 networks:
-  default:
+  infra:
     driver: overlay
 
 secrets:

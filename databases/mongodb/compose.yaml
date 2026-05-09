@@ -1,46 +1,66 @@
 services:
   mongodb:
-    image: mongo:latest
-    # container_name is ignored in Swarm mode
-    command: --quiet --wiredTigerCacheSizeGB 0.25
+    image: mongo:7.0
+    hostname: "mongodb-{{.Node.Hostname}}"
+    entrypoint: [ "bash", "-c" ]
+    command:
+      - |
+        cp /run/secrets/mongodb_keyfile /tmp/mongodb.key &&
+        chown 999:999 /tmp/mongodb.key &&
+        chmod 400 /tmp/mongodb.key &&
+        exec docker-entrypoint.sh mongod \
+          --quiet \
+          --replSet rs0 \
+          --bind_ip_all \
+          --wiredTigerCacheSizeGB 0.25 \
+          --keyFile /tmp/mongodb.key
     secrets:
-      - db_password
-      - db_user
+      - mongodb_password
+      - mongodb_user
+      - mongodb_keyfile
     environment:
-      MONGO_INITDB_ROOT_USERNAME_FILE: /run/secrets/db_user
-      MONGO_INITDB_ROOT_PASSWORD_FILE: /run/secrets/db_password
+      TZ: "America/Halifax"
+      MONGO_INITDB_ROOT_USERNAME_FILE: "/run/secrets/mongodb_user"
+      MONGO_INITDB_ROOT_PASSWORD_FILE: "/run/secrets/mongodb_password"
     volumes:
-      - /mnt/docker-data/databases/mongodb/data:/data/db
-      - /mnt/docker-data/databases/mongodb/config:/data/configdb
+      - /opt/docker-data/databases/mongodb/data:/data/db
+      - /opt/docker-data/databases/mongodb/config:/data/configdb
     ports:
       - target: 27017
         published: 27017
-        mode: ingress
+        mode: host
     healthcheck:
-      test: ["CMD", "mongosh", "--quiet", "localhost:27017/test", "--eval", "db.runCommand('ping').ok"]
+      test: [ "CMD", "mongosh", "--quiet", "--eval", "db.runCommand('ping').ok" ]
       interval: 10s
       timeout: 5s
       retries: 5
+      start_period: 30s
     deploy:
-      replicas: 1
+      replicas: 3 # one replica per node
       placement:
-        constraints:
-          - node.role == manager
+        max_replicas_per_node: 1 # enforce one per node
       restart_policy:
         condition: on-failure
+        delay: 10s
+        max_attempts: 3
       resources:
         limits:
           cpus: '0.5'
+          memory: 1G
+        reservations:
           memory: 512M
     networks:
-      - dockernet
+      - databases
 
 networks:
-  dockernet:
-    external: true
+  databases:
+    driver: overlay
+    attachable: true
 
 secrets:
-  db_password:
+  mongodb_password:
     external: true
-  db_user:
+  mongodb_user:
+    external: true
+  mongodb_keyfile:
     external: true
