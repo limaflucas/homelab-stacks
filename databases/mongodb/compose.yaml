@@ -1,8 +1,7 @@
 services:
   mongodb:
     image: mongo:latest
-    container_name: mongodb
-    restart: unless-stopped
+    # container_name is ignored in Swarm mode
     command: --quiet --wiredTigerCacheSizeGB 0.25
     secrets:
       - db_password
@@ -14,17 +13,25 @@ services:
       - /mnt/docker-data/databases/mongodb/data:/data/db
       - /mnt/docker-data/databases/mongodb/config:/data/configdb
     ports:
-      - "27017:27017"
+      - target: 27017
+        published: 27017
+        mode: ingress
     healthcheck:
-      test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017/test --quiet
+      test: ["CMD", "mongosh", "--quiet", "localhost:27017/test", "--eval", "db.runCommand('ping').ok"]
       interval: 10s
       timeout: 5s
       retries: 5
     deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+      restart_policy:
+        condition: on-failure
       resources:
         limits:
-          cpus: '1.0'
-          memory: 1G
+          cpus: '0.5'
+          memory: 512M
     networks:
       - dockernet
 
@@ -34,6 +41,6 @@ networks:
 
 secrets:
   db_password:
-    file: ./secrets/db_password.txt
+    external: true
   db_user:
-    file: ./secrets/db_user.txt
+    external: true

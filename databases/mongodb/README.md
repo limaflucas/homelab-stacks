@@ -1,32 +1,41 @@
 # MongoDB
 
-This directory contains the configuration for a shared MongoDB database instance.
-
-## Tools Configured
-
-*   **MongoDB**: A document-oriented NoSQL database program.
+This directory contains the configuration for a shared MongoDB database instance, optimized for Docker Swarm.
 
 ## Goal
 
 To provide a centralized and shared NoSQL database backend that can be consumed by multiple services within the homelab environment.
 
-## Usage in this Project
+## Usage in Swarm
 
-MongoDB is configured to store data and configuration on the host under `/mnt/docker-data/databases/mongodb/`. It reads its root credentials securely via Docker secrets and exposes port `27017` on the shared `dockernet` network, allowing other containerized services (such as Komodo) to connect to it.
+MongoDB is configured to store data and configuration on the host under `/mnt/docker-data/databases/mongodb/`. It uses **External Docker Secrets** for root credentials and is placed on a **manager node** to ensure stable persistence.
 
 ## Installation Steps
 
-1.  Navigate to this directory:
+1.  **Create the external secrets:**
     ```bash
-    cd mongodb
+    echo "root_user" | docker secret create db_user -
+    echo "your_secure_db_password" | docker secret create db_password -
     ```
-2.  Create a `secrets` directory and the required secret files for the root credentials:
+
+2.  **Deploy the stack:**
     ```bash
-    mkdir -p secrets
-    echo "your_secure_db_password" > secrets/db_password.txt
-    echo "root_user" > secrets/db_user.txt
+    docker stack deploy -c compose.yaml databases
     ```
-3.  Start the database:
-    ```bash
-    docker compose up -d
-    ```
+
+## Post-Deployment
+
+- **Check health:**
+  ```bash
+  docker service ls | grep databases_mongodb
+  ```
+- **Connection String:**
+  Other services on the `dockernet` network can connect using:
+  `mongodb://<db_user>:<db_password>@mongodb:27017/`
+
+## Configuration Details
+
+- **Memory Cache:** Limited to 0.25GB WiredTiger cache.
+- **Resources:** Limited to 0.5 CPU and 512M RAM.
+- **Persistence:** Bound to `/mnt/docker-data/databases/mongodb/` on the manager node.
+- **Network:** Connected to the external `dockernet` overlay network.
