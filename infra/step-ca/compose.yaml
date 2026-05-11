@@ -1,3 +1,6 @@
+include:
+  - path: ../../networks.yaml
+
 services:
   step-ca:
     image: smallstep/step-ca:latest
@@ -26,10 +29,6 @@ services:
         limits:
           cpus: '0.2'
           memory: 128M
-
-networks:
-  infra:
-    driver: overlay
 
 secrets:
   step_ca_password:

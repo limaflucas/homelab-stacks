@@ -1,6 +1,6 @@
-# Step-CA
+# Infrastructure: Step-CA
 
-Smallstep Certificate Authority for the Homelab.
+Smallstep Certificate Authority for the Homelab, optimized for Docker Swarm.
 
 ## Quick Start
 
@@ -11,6 +11,7 @@ Smallstep Certificate Authority for the Homelab.
     ```
 
 2.  **Deploy the service:**
+    Step-CA is typically deployed as part of the `infra` stack:
     ```bash
     docker stack deploy -c compose.yaml infra
     ```
@@ -58,7 +59,7 @@ To add *additional* ACME provisioners or manage existing ones:
 - **Timezone:** `America/Halifax`
 - **Remote Management:** Enabled (`DOCKER_STEPCA_INIT_REMOTE_MANAGEMENT=true`)
 - **Persistence:** Data is stored in `/mnt/docker-data/infra/step-ca`.
-- **Network:** Uses the stack's default overlay network.
+- **Network:** Connected to the centralized `infra` overlay network (inherited via `networks.yaml`).
 - **Resources:** Limited to 0.2 CPU and 128M RAM.
 
 ## Security (Docker Secrets)
