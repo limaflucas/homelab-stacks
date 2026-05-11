@@ -18,10 +18,10 @@ Smallstep Certificate Authority for the Homelab, optimized for Docker Swarm.
 
 3.  **Initialize (Automated):**
     The service is configured to automatically initialize with:
-    - **Name:** Homelab CA
+    - **Name:** Homelab Step CA
     - **Provisioner:** `stepca`
     - **ACME:** Enabled by default (`DOCKER_STEPCA_INIT_ACME=true`)
-    - **DNS Names:** `localhost`, `stepca.homelab`
+    - **DNS Names:** `step-ca`, `stepca.homelab`, `localhost`
 
 4.  **Get the Root CA Fingerprint:**
     You will need the fingerprint to bootstrap other services.
@@ -38,7 +38,7 @@ Smallstep Certificate Authority for the Homelab, optimized for Docker Swarm.
 ## ACME Endpoint
 
 Since ACME is initialized automatically, the endpoint is immediately available at:
-`https://stepca.homelab:9000/acme/acme/directory`
+`https://step-ca:9000/acme/acme/directory`
 
 To add *additional* ACME provisioners or manage existing ones:
 1.  **Exec into the container:**
@@ -57,15 +57,16 @@ To add *additional* ACME provisioners or manage existing ones:
 ## Configuration Details
 
 - **Timezone:** `America/Halifax`
-- **Remote Management:** Enabled (`DOCKER_STEPCA_INIT_REMOTE_MANAGEMENT=true`)
-- **Persistence:** Data is stored in `/mnt/docker-data/infra/step-ca`.
-- **Network:** Connected to the centralized `infra` overlay network (inherited via `networks.yaml`).
+- **Remote Management:** Disabled (`DOCKER_STEPCA_INIT_REMOTE_MANAGEMENT=false`)
+- **Persistence:** Data is stored in specific subdirectories for better organization:
+    - Certs: `/mnt/docker-data/infra/step-ca/certs`
+    - Config: `/mnt/docker-data/infra/step-ca/config`
+    - DB: `/mnt/docker-data/infra/step-ca/db`
+- **Network:** Connected to the `infra` overlay network.
+- **Healthcheck:** Enabled to monitor CA availability via `step ca health`.
 - **Resources:** Limited to 0.2 CPU and 128M RAM.
 
 ## Security (Docker Secrets)
 
-The CA password is managed via the `step_ca_password` external secret. If you need to rotate the password:
-1. Remove the service.
-2. Update/recreate the secret.
-3. Redeploy the service.
+The CA password is managed via the `step_ca_password` external secret.
 *(Note: Changing the password after initialization requires manual updates to the encrypted keys in the volume.)*
