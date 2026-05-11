@@ -1,47 +1,40 @@
-# Networking: Nginx Proxy Manager
+# Infrastructure: Nginx Proxy Manager
 
-This directory contains the configuration for the reverse proxy.
+This directory contains the configuration for **Nginx Proxy Manager (NPM)**, optimized for Docker Swarm.
 
-## Tools Configured
+## Architecture
 
-*   **Nginx Proxy Manager (NPM)**: A reverse proxy management system based on NGINX, with a clean web UI.
-*   **PostgreSQL**: The relational database used to store NPM's configuration.
-
-## Goal
-
-To easily expose web services on the network, manage domain routing, and handle SSL/TLS certificates using an internal Step-CA ACME server.
-
-## Usage in this Project
-
-NPM listens on the standard HTTP (`80`) and HTTPS (`443`) ports. It provides a web-based administration interface on port `81` to manage proxy hosts, redirection streams, and SSL certificates. The configuration is securely stored in the accompanying PostgreSQL database.
-
-This setup is configured to use a local Step-CA server for ACME certificates, allowing for internal SSL without public DNS requirements.
+- **Mode:** Docker Swarm Service
+- **Role:** Reverse Proxy / SSL Termination
+- **Network:** 
+    - `infra`: For internal communication with other services (including Step-CA for ACME).
+- **Placement:** Restricted to a **manager node** to manage ingress and certificates consistently.
 
 ## Installation Steps
 
-1.  Navigate to this directory:
+1.  **Deploy the Stack:**
     ```bash
-    cd networking/nginx-proxy-manager
+    docker stack deploy -c compose.yaml infra
     ```
-2.  Ensure the external network `dockernet` exists:
-    ```bash
-    docker network create dockernet || true
-    ```
-3.  Create a `secrets` directory and the required secret files:
-    ```bash
-    mkdir -p secrets
-    echo "your_secure_db_password" > secrets/db_password.txt
-    echo "npm" > secrets/db_user.txt
-    ```
-4.  Create a `certs` directory and provide the Root CA certificate for Step-CA:
-    ```bash
-    mkdir -p certs
-    # Copy your Step-CA root certificate
-    cp /path/to/root_ca.crt certs/root_ca.crt
-    ```
-5.  Create a `.env` file for additional environment variables if needed.
-6.  Start the proxy stack:
-    ```bash
-    docker compose up -d
-    ```
-7.  Access the Admin UI at `http://<your-server-ip>:81` to configure your proxies.
+
+2.  **Post-Deployment:**
+    - Access the Admin UI at `http://<manager-ip>:81`.
+    - Default credentials: `admin@example.com` / `changeme`.
+    - Configure Step-CA as your ACME server using the endpoint: `https://step-ca:9000/acme/acme/directory`.
+
+## Configuration Details
+
+- **Persistence:**
+    - Data: `/mnt/docker-data/infra/nginx-proxy-manager/data`
+    - Certificates: `/mnt/docker-data/infra/nginx-proxy-manager/letsencrypt`
+- **TLS & Trust:** 
+    - Internal trust is established by mounting the Homelab Root CA from `infra/step-ca` to `/usr/local/share/ca-certificates/homelab-root-ca.crt`.
+    - A custom initialization script `99-trust-ca.sh` is used to update the CA store within the container.
+- **ACME:** Pre-configured to use the internal Step-CA ACME directory (`LE_SERVER`).
+- **Ports:** 
+    - 80: HTTP
+    - 443: HTTPS
+    - 81: Admin UI
+- **Environment:**
+    - `DISABLE_IPV6: 'true'`
+    - `TZ: 'America/Halifax'`

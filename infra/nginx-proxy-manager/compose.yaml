@@ -1,72 +1,38 @@
 services:
   npm:
-    image: 'jc21/nginx-proxy-manager:2.14.0'
-    container_name: npm
-    restart: unless-stopped
+    image: 'jc21/nginx-proxy-manager:latest'
     ports:
-      - '80:80'
-      - '443:443'
-      - '81:81'
-    secrets:
-      - db_password
-      - db_user
-    env_file: .env
+      - 80:80
+      - 443:443
+      - 81:81
     environment:
-      DB_POSTGRES_HOST: 'npm-pgsql'
-      DB_POSTGRES_PORT: '5432'
-      DB_POSTGRES_USER__FILE: /run/secrets/db_user
-      DB_POSTGRES_PASSWORD__FILE: /run/secrets/db_password
-      LE_SERVER: 'https://stepca.homelab/acme/acme/directory'
+      # ACME configuration
+      LE_SERVER: 'https://step-ca:9000/acme/acme/directory'
+      DISABLE_IPV6: 'true'
+      TZ: 'America/Halifax'
     volumes:
-      - /mnt/docker-data/networking/nginx-proxy-manager/npm:/data
-      - /mnt/docker-data/networking/nginx-proxy-manager/letsencrypt:/etc/letsencrypt
-      - ./certs/root_ca.crt:/usr/local/share/ca-certificates/root_ca.crt
-    deploy:
-      resources:
-        limits:
-          cpus: '0.5'
-          memory: 512M
-    networks:
-      - dockernet
-    post_start:
-      - command: update-ca-certificates
-        user: root
-    depends_on:
-      npm-pgsql:
-        condition: service_healthy
-
-  npm-pgsql:
-    image: postgres:17
-    container_name: npm_pgsql
-    restart: unless-stopped
-    secrets:
-      - db_password
-      - db_user
-    env_file: .env
-    environment:
-      POSTGRES_USER_FILE: /run/secrets/db_user
-      POSTGRES_PASSWORD_FILE: /run/secrets/db_password
-    volumes:
-      - /mnt/docker-data/networking/nginx-proxy-manager/postgresql:/var/lib/postgresql/data
+      - /mnt/docker-data/infra/nginx-proxy-manager/data:/data
+      - /mnt/docker-data/infra/nginx-proxy-manager/letsencrypt:/etc/letsencrypt
+      - /mnt/docker-data/infra/nginx-proxy-manager/custom-init/99-trust-ca.sh:/etc/cont-init.d/99-trust-ca.sh:ro
+      - /mnt/docker-data/infra/step-ca/certs/root_ca.crt:/usr/local/share/ca-certificates/homelab-root-ca.crt:ro
     healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -U npm -d npm" ]
+      test: [ "CMD", "/usr/bin/check-health" ]
       interval: 10s
       timeout: 5s
       retries: 5
+      start_period: 2m
     deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
       resources:
         limits:
           cpus: '0.5'
           memory: 512M
     networks:
-      - dockernet
+      - infra
 
 networks:
-  dockernet:
+  infra:
     external: true
-
-secrets:
-  db_password:
-    file: ./secrets/db_password.txt
-  db_user:
-    file: ./secrets/db_user.txt
