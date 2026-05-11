@@ -5,18 +5,20 @@ services:
       - "9000:9000"
     environment:
       - TZ=America/Halifax
-      - DOCKER_STEPCA_INIT_NAME=Homelab Step CA
+      - DOCKER_STEPCA_INIT_NAME=Homelab CA
       - DOCKER_STEPCA_INIT_DNS_NAMES=step-ca,stepca.homelab,localhost
-      - DOCKER_STEPCA_INIT_PROVISIONER_NAME=stepca
-      - DOCKER_STEPCA_INIT_PASSWORD_FILE=/run/secrets/step_ca_password
-      - DOCKER_STEPCA_INIT_REMOTE_MANAGEMENT=false
+      - DOCKER_STEPCA_INIT_PROVISIONER_NAME=step-ca
+      - DOCKER_STEPCA_INIT_REMOTE_MANAGEMENT=true
       - DOCKER_STEPCA_INIT_ACME=true
+      - DOCKER_STEPCA_INIT_ROOT_FILE=/run/secrets/step_ca_root_ca_crt
+      - DOCKER_STEPCA_INIT_KEY_FILE=/run/secrets/step_ca_root_ca_key
+      - DOCKER_STEPCA_INIT_KEY_PASSWORD_FILE=/run/secrets/step_ca_password
     volumes:
       - /mnt/docker-data/infra/step-ca/certs:/home/step/certs
-      - /mnt/docker-data/infra/step-ca/config:/home/step/config
-      - /mnt/docker-data/infra/step-ca/db:/home/step/db
     secrets:
       - step_ca_password
+      - step_ca_root_ca_key
+      - step_ca_root_ca_crt
     networks:
       - infra
     deploy:
@@ -41,4 +43,8 @@ networks:
 
 secrets:
   step_ca_password:
+    external: true
+  step_ca_root_ca_key:
+    external: true
+  step_ca_root_ca_crt:
     external: true

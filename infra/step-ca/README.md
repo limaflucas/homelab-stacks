@@ -4,10 +4,12 @@ Smallstep Certificate Authority for the Homelab, optimized for Docker Swarm.
 
 ## Quick Start
 
-1.  **Create the CA password secret:**
-    Before deploying, you must create the Docker secret for the CA password:
+1.  **Create the necessary Docker secrets:**
+    Before deploying, you must create the Docker secrets for the CA:
     ```bash
     echo "your-strong-password" | docker secret create step_ca_password -
+    docker secret create step_ca_root_ca_key path/to/root_ca.key
+    docker secret create step_ca_root_ca_crt path/to/root_ca.crt
     ```
 
 2.  **Deploy the service:**
@@ -17,9 +19,9 @@ Smallstep Certificate Authority for the Homelab, optimized for Docker Swarm.
     ```
 
 3.  **Initialize (Automated):**
-    The service is configured to automatically initialize with:
-    - **Name:** Homelab Step CA
-    - **Provisioner:** `stepca`
+    The service is configured to automatically initialize using root certificates provided via Docker secrets:
+    - **Name:** Homelab CA
+    - **Provisioner:** `step-ca`
     - **ACME:** Enabled by default (`DOCKER_STEPCA_INIT_ACME=true`)
     - **DNS Names:** `step-ca`, `stepca.homelab`, `localhost`
 
@@ -57,16 +59,18 @@ To add *additional* ACME provisioners or manage existing ones:
 ## Configuration Details
 
 - **Timezone:** `America/Halifax`
-- **Remote Management:** Disabled (`DOCKER_STEPCA_INIT_REMOTE_MANAGEMENT=false`)
-- **Persistence:** Data is stored in specific subdirectories for better organization:
-    - Certs: `/mnt/docker-data/infra/step-ca/certs`
-    - Config: `/mnt/docker-data/infra/step-ca/config`
-    - DB: `/mnt/docker-data/infra/step-ca/db`
+- **Remote Management:** Enabled (`DOCKER_STEPCA_INIT_REMOTE_MANAGEMENT=true`)
+- **Persistence:** Data is stored in:
+    - Certs & Config: `/mnt/docker-data/infra/step-ca/certs`
 - **Network:** Connected to the `infra` overlay network.
 - **Healthcheck:** Enabled to monitor CA availability via `step ca health`.
 - **Resources:** Limited to 0.2 CPU and 128M RAM.
 
 ## Security (Docker Secrets)
 
-The CA password is managed via the `step_ca_password` external secret.
-*(Note: Changing the password after initialization requires manual updates to the encrypted keys in the volume.)*
+The CA uses external Docker secrets for sensitive files:
+- `step_ca_password`: The password for the root CA key.
+- `step_ca_root_ca_key`: The root CA private key.
+- `step_ca_root_ca_crt`: The root CA certificate.
+
+*(Note: These secrets must exist before the stack is deployed.)*
