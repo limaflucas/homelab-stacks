@@ -1,0 +1,61 @@
+services:
+  komodo:
+    image: ghcr.io/moghtech/komodo-core:2
+    environment:
+      TZ: America/Halifax
+      KOMODO_DATABASE_URI_FILE: /run/secrets/komodo_db_uri
+      KOMODO_HOST: https://komodo.homelab
+      KOMODO_TITLE: Homelab Komodo
+      KOMODO_LOCAL_AUTH: "true"
+      KOMODO_DISABLE_CONFIRM_DIALOG: "false"
+      KOMODO_FIRST_SERVER_NAME: "{{.Node.Hostname}}"
+      KOMODO_WEBHOOK_SECRET: /run/secrets/komodo_webhook_secret
+      KOMODO_JWT_SECRET: /run/secrets/komodo_jwt_secret
+      # OIDC Configuration
+      # KOMODO_OIDC_ENABLED: "true"
+      # KOMODO_OIDC_PROVIDER: "https://authelia.homelab"
+      # KOMODO_OIDC_USE_FULL_EMAIL: "true"
+      # KOMODO_OIDC_CLIENT_ID: "komodo"
+      # KOMODO_OIDC_CLIENT_SECRET_FILE: "/run/secrets/komodo_oidc_client_secret"
+    secrets:
+      - komodo_db_uri
+      # - komodo_oidc_client_secret
+    volumes:
+      - /mnt/docker-data/infra/komodo/keys:/config/keys
+      - /mnt/docker-data/infra/komodo/backups:/backups
+      # Root CA for internal TLS verification
+      - /mnt/docker-data/infra/step-ca/certs/root_ca.crt:/usr/local/share/ca-certificates/homelab-root-ca.crt:ro
+    ports:
+      - 9120:9120
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:9120/" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+      restart_policy:
+        condition: any
+        delay: 5s
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+    networks:
+      - databases
+      - infra
+
+networks:
+  databases:
+    external: true
+  infra:
+    external: true
+
+secrets:
+  komodo_db_uri:
+    external: true
+  # komodo_oidc_client_secret:
+  #   external: true
