@@ -1,23 +1,24 @@
 services:
   mongodb:
-    image: mongo:7.0
+    image: mongo:8
     hostname: "mongodb-{{.Node.Hostname}}"
     entrypoint: [ "bash", "-c" ]
     command:
       - |
-        cp /run/secrets/mongodb_keyfile /tmp/mongodb.key &&
-        chown 999:999 /tmp/mongodb.key &&
-        chmod 400 /tmp/mongodb.key &&
         exec docker-entrypoint.sh mongod \
           --quiet \
           --replSet rs0 \
           --bind_ip_all \
           --wiredTigerCacheSizeGB 0.25 \
-          --keyFile /tmp/mongodb.key
+          --keyFile /srv/mongodb/keyfile
     secrets:
       - mongodb_password
       - mongodb_user
-      - mongodb_keyfile
+      - source: mongodb_keyfile
+        target: /srv/mongodb/keyfile
+        uid: "999"
+        guid: "999"
+        mode: 0o400
     environment:
       TZ: "America/Halifax"
       MONGO_INITDB_ROOT_USERNAME_FILE: "/run/secrets/mongodb_user"
@@ -34,7 +35,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-      start_period: 30s
+      start_period: 60s
     deploy:
       replicas: 3 # one replica per node
       placement:
@@ -46,16 +47,13 @@ services:
       resources:
         limits:
           cpus: '0.5'
-          memory: 1G
-        reservations:
           memory: 512M
     networks:
       - databases
 
 networks:
   databases:
-    driver: overlay
-    attachable: true
+    external: true
 
 secrets:
   mongodb_password:
