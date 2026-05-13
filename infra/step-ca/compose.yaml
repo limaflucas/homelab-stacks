@@ -14,7 +14,8 @@ services:
       - DOCKER_STEPCA_INIT_KEY_FILE=/run/secrets/step_ca_root_ca_key
       - DOCKER_STEPCA_INIT_KEY_PASSWORD_FILE=/run/secrets/step_ca_password
     volumes:
-      - /mnt/docker-data/infra/step-ca:/home/step
+      - /mnt/docker-data/infra/step-ca/db:/home/step/db
+      - /mnt/docker-data/infra/step-ca/certs:/home/step/certs
     secrets:
       - step_ca_password
       - step_ca_root_ca_key
