@@ -1,26 +1,34 @@
-version: '3.8'
-
 services:
   periphery:
     image: ghcr.io/moghtech/komodo-periphery:2
     init: true
     environment:
-      PERIPHERY_CORE_ADDRESS: "https://komodo.homelab"
-      PERIPHERY_CONNECT_AS: "${PVE_NODE}"
-      PERIPHERY_ONBOARDING_KEY: "${ONBOARDING_KEY}"
+      TZ: America/Halifax
+      # Use the secure WebSocket path for Komodo 2.x
+      PERIPHERY_CORE_ADDRESS: "ws://komodo:9120"
+      # Templating IS supported in environment variables
+      PERIPHERY_CONNECT_AS: "{{.Node.Hostname}}"
       PERIPHERY_CORE_PUBLIC_KEYS: "file:/config/keys/core.pub"
-      PERIPHERY_ROOT_DIRECTORY: "/etc/komodo"
-      PERIPHERY_INCLUDE_DISK_MOUNTS: "/etc/hostname"
     volumes:
-      # In a global deployment, these bind mounts map to the LOCAL host directories
-      # of whichever node the agent is currently running on.
-      - /mnt/docker-data/infra/periphery/${PVE_NODE}/keys:/config/keys
+      - periphery_keys:/config/keys
+      # System monitoring mounts
       - /var/run/docker.sock:/var/run/docker.sock
-      - /proc:/proc
-      - /mnt/docker-data/apps/komodo/etc/komodo:/etc/komodo
+      - /proc:/proc:ro
+
+      # Core Public Key and Root CA Trust
+      - /mnt/docker-data/infra/komodo/keys/core.pub:/config/keys/core.pub:ro
+      - /mnt/docker-data/infra/step-ca/certs/root_ca.crt:/usr/local/share/ca-certificates/homelab-root-ca.crt:ro
     deploy:
-      mode: global
+      mode: global # One container per node
       restart_policy:
         condition: on-failure
         delay: 5s
-        max_attempts: 3
+    networks:
+      - infra
+
+volumes:
+  periphery_keys:
+
+networks:
+  infra:
+    external: true
