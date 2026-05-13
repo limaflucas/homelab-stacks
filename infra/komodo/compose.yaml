@@ -8,23 +8,17 @@ services:
       KOMODO_TITLE: Homelab Komodo
       KOMODO_LOCAL_AUTH: "true"
       KOMODO_DISABLE_CONFIRM_DIALOG: "false"
+      KOMODO_PERIPHERY_PUBLIC_KEY: file:/config/keys/peripheries.pub
+      KOMODO_WEBHOOK_SECRET_FILE: /run/secrets/komodo_webhook_secret
+      KOMODO_JWT_SECRET_FILE: /run/secrets/komodo_jwt_secret
       KOMODO_FIRST_SERVER_NAME: "{{.Node.Hostname}}"
-      KOMODO_WEBHOOK_SECRET: /run/secrets/komodo_webhook_secret
-      KOMODO_JWT_SECRET: /run/secrets/komodo_jwt_secret
-      # OIDC Configuration
-      # KOMODO_OIDC_ENABLED: "true"
-      # KOMODO_OIDC_PROVIDER: "https://authelia.homelab"
-      # KOMODO_OIDC_USE_FULL_EMAIL: "true"
-      # KOMODO_OIDC_CLIENT_ID: "komodo"
-      # KOMODO_OIDC_CLIENT_SECRET_FILE: "/run/secrets/komodo_oidc_client_secret"
     secrets:
       - komodo_db_uri
-      # - komodo_oidc_client_secret
+      - komodo_webhook_secret
+      - komodo_jwt_secret
     volumes:
       - /mnt/docker-data/infra/komodo/keys:/config/keys
       - /mnt/docker-data/infra/komodo/backups:/backups
-      # Root CA for internal TLS verification
-      - /mnt/docker-data/infra/step-ca/certs/root_ca.crt:/usr/local/share/ca-certificates/homelab-root-ca.crt:ro
     ports:
       - 9120:9120
     healthcheck:
@@ -37,25 +31,20 @@ services:
       placement:
         constraints:
           - node.role == manager
-      restart_policy:
-        condition: any
-        delay: 5s
-      resources:
-        limits:
-          cpus: '0.5'
-          memory: 512M
     networks:
       - databases
       - infra
+
+secrets:
+  komodo_db_uri:
+    external: true
+  komodo_webhook_secret:
+    external: true
+  komodo_jwt_secret:
+    external: true
 
 networks:
   databases:
     external: true
   infra:
     external: true
-
-secrets:
-  komodo_db_uri:
-    external: true
-  # komodo_oidc_client_secret:
-  #   external: true
