@@ -60,10 +60,7 @@ To add *additional* ACME provisioners or manage existing ones:
 
 - **Timezone:** `America/Halifax`
 - **Remote Management:** Enabled (`DOCKER_STEPCA_INIT_REMOTE_MANAGEMENT=true`)
-- **Persistence:** Data is stored in:
-    - Certs: `/mnt/docker-data/infra/step-ca/certs`
-    - Database: `/mnt/docker-data/infra/step-ca/db`
-    - Config: `/mnt/docker-data/infra/step-ca/config`
+- **Persistence:** All data (certs, db, config) is stored in `/mnt/docker-data/infra/step-ca`, mapped to `/home/step` in the container.
 - **Network:** Connected to the `infra` overlay network.
 - **Healthcheck:** Enabled to monitor CA availability via `step ca health`.
 - **Resources:** Limited to 0.2 CPU and 128M RAM.
