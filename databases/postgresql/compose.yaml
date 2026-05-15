@@ -106,10 +106,19 @@ services:
 
   pgpool:
     image: public.ecr.aws/bitnami/pgpool:4
+    entrypoint: [ "/bin/bash", "-c" ]
+    command:
+      - |
+        export PGPOOL_AES_KEY=$$(cat /run/secrets/pgpool_aes_key)
+        chmod 600 /opt/bitnami/pgpool/conf/.pgpoolkey
+        exec /opt/bitnami/scripts/pgpool/entrypoint.sh \
+            /opt/bitnami/scripts/pgpool/run.sh
     ports:
       - target: 5432
         published: 5432
         mode: ingress
+    volumes:
+      - /mnt/docker-data/databases/pgpool/pool_passwd:/opt/bitnami/pgpool/conf/pool_passwd
     environment:
       - TZ=America/Halifax
       - PGPOOL_BACKEND_NODES=0:postgresql-vm-docker-adam:5432,1:postgresql-vm-docker-zeus:5432,2:postgresql-vm-docker-bragi:5432
@@ -143,6 +152,7 @@ services:
     secrets:
       - pgpool_admin_password
       - postgresql_superuser_password
+      - pgpool_aes_key
     networks:
       - databases
     deploy:
@@ -164,4 +174,6 @@ secrets:
   postgresql_replication_password:
     external: true
   pgpool_admin_password:
+    external: true
+  pgpool_aes_key:
     external: true
