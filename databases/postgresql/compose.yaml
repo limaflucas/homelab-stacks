@@ -1,0 +1,167 @@
+services:
+  #############################################
+  # POSTGRESQL PRIMARY
+  #############################################
+  pgsql-primary:
+    image: postgres:17
+    hostname: postgresql-{{.Node.Hostname}}
+    volumes:
+      - /opt/docker-data/databases/postgresql/data:/var/lib/postgresql/data
+      - /mnt/docker-data/databases/postgresql/init:/docker-entrypoint-initdb.d
+      - /mnt/docker-data/databases/postgresql/pg_hba_homelab.conf:/var/lib/postgresql/pg_hba_homelab.conf
+    environment:
+      - TZ=America/Halifax
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD_FILE=/run/secrets/postgresql_superuser_password
+      - POSTGRES_DB=postgres
+      - POSTGRES_INITDB_ARGS=--encoding=UTF8 --locale=en_US.UTF-8
+    command: |
+      postgres
+        -c wal_level=replica
+        -c hot_standby=on
+        -c max_wal_senders=10
+        -c max_replication_slots=10
+        -c wal_keep_size=256
+        -c synchronous_commit=on
+        -c archive_mode=off
+        -c listen_addresses='*'
+        -c hba_file=/var/lib/postgresql/pg_hba_homelab.conf
+    secrets:
+      - postgresql_superuser_password
+      - postgresql_replication_password
+      - pgpool_admin_password
+    networks:
+      - databases
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.labels.pg == 1
+      restart_policy:
+        condition: on-failure
+        delay: 10s
+        max_attempts: 5
+        window: 120s
+
+  #############################################
+  # POSTGRESQL STANDBYS
+  #############################################
+
+  pgsql-standby:
+    image: postgres:17
+    hostname: postgresql-{{.Node.Hostname}}
+    volumes:
+      - /opt/docker-data/databases/postgresql/data:/var/lib/postgresql/data
+      - /mnt/docker-data/databases/postgresql/pg_hba_homelab.conf:/var/lib/postgresql/pg_hba_homelab.conf
+    environment:
+      - TZ=America/Halifax
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD_FILE=/run/secrets/postgresql_superuser_password
+      - PGPASSFILE=/run/secrets/.pgpass
+    entrypoint: [ "/bin/bash", "-c" ]
+    command:
+      - |
+        # Wait for primary to be ready
+        until pg_isready -h postgresql-vm-docker-adam -p 5432 -U postgres; do
+          echo "Waiting for primary postgresql-vm-docker-adam..."
+          sleep 10
+        done
+
+        # Only run basebackup if data dir is empty
+        if [ ! -f /var/lib/postgresql/data/PG_VERSION ]; then
+          echo "Running pg_basebackup from primary..."
+          PGPASSWORD=$$(cat /run/secrets/postgresql_replication_password) \
+          pg_basebackup \
+            -h postgresql-vm-docker-adam \
+            -U replicator \
+            -D /var/lib/postgresql/data \
+            -P -Xs -R
+        fi
+
+        # Start postgres
+        exec docker-entrypoint.sh postgres \
+          -c hot_standby=on \
+          -c listen_addresses='*' \
+          -c hba_file=/var/lib/postgresql/pg_hba_homelab.conf
+    secrets:
+      - postgresql_superuser_password
+      - postgresql_replication_password
+    networks:
+      - databases
+    deploy:
+      replicas: 2
+      placement:
+        max_replicas_per_node: 1
+        constraints:
+          - node.labels.pg != 1
+      restart_policy:
+        condition: on-failure
+        delay: 15s
+        max_attempts: 5
+        window: 120s
+
+  #############################################
+  # PGPOOL - Load balancer + failover
+  #############################################
+
+  pgpool:
+    image: public.ecr.aws/bitnami/pgpool:4
+    ports:
+      - target: 5432
+        published: 5432
+        mode: ingress
+    environment:
+      - TZ=America/Halifax
+      - PGPOOL_BACKEND_NODES=0:postgresql-vm-docker-adam:5432,1:postgresql-vm-docker-zeus:5432,2:postgresql-vm-docker-bragi:5432
+      - PGPOOL_BACKEND_APPLICATION_NAMES=postgresql-vm-docker-adam,postgresql-vm-docker-zeus,postgresql-vm-docker-bragi
+      - PGPOOL_ENABLE_LOAD_BALANCING=yes
+      - PGPOOL_ENABLE_STATEMENT_LOAD_BALANCING=yes
+      - PGPOOL_DISABLE_LOAD_BALANCE_ON_WRITE=transaction
+      - PGPOOL_MAX_POOL=15
+      # Streaming replication check
+      - PGPOOL_SR_CHECK_USER=pgpool
+      - PGPOOL_SR_CHECK_PASSWORD_FILE=/run/secrets/pgpool_admin_password
+      - PGPOOL_SR_CHECK_PERIOD=10
+      - PGPOOL_SR_CHECK_DATABASE=postgres
+      # Health check
+      - PGPOOL_HEALTH_CHECK_USER=pgpool
+      - PGPOOL_HEALTH_CHECK_PASSWORD_FILE=/run/secrets/pgpool_admin_password
+      - PGPOOL_HEALTH_CHECK_PERIOD=10
+      - PGPOOL_HEALTH_CHECK_TIMEOUT=5
+      - PGPOOL_HEALTH_CHECK_MAX_RETRIES=3
+      - PGPOOL_HEALTH_CHECK_RETRY_DELAY=3
+      # Failover
+      - PGPOOL_AUTO_FAILBACK=yes
+      # Admin
+      - PGPOOL_ADMIN_USERNAME=admin
+      - PGPOOL_ADMIN_PASSWORD_FILE=/run/secrets/pgpool_admin_password
+      # Backend postgres superuser
+      - PGPOOL_POSTGRES_USERNAME=postgres
+      - PGPOOL_POSTGRES_PASSWORD_FILE=/run/secrets/postgresql_superuser_password
+      - PGPOOL_ENABLE_LDAP=no
+      - PGPOOL_AUTHENTICATION_METHOD=scram-sha-256
+    secrets:
+      - pgpool_admin_password
+      - postgresql_superuser_password
+    networks:
+      - databases
+    deploy:
+      replicas: 3
+      placement:
+        max_replicas_per_node: 1
+      restart_policy:
+        condition: on-failure
+        delay: 10s
+        window: 120s
+
+networks:
+  databases:
+    external: true
+
+secrets:
+  postgresql_superuser_password:
+    external: true
+  postgresql_replication_password:
+    external: true
+  pgpool_admin_password:
+    external: true
