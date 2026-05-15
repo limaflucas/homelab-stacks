@@ -60,16 +60,22 @@ To add *additional* ACME provisioners or manage existing ones:
 
 - **Timezone:** `America/Halifax`
 - **Remote Management:** Enabled (`DOCKER_STEPCA_INIT_REMOTE_MANAGEMENT=true`)
-- **Persistence:** All data (certs, db, config) is stored in `/mnt/docker-data/infra/step-ca`, mapped to `/home/step` in the container.
+- **Persistence:** 
+    - Certificates: `/mnt/docker-data/infra/step-ca/certs` mapped to `/home/step/certs`
+    - Database: `/mnt/docker-data/infra/step-ca/db` mapped to `/home/step/db`
 - **Network:** Connected to the `infra` overlay network.
-- **Healthcheck:** Enabled to monitor CA availability via `step ca health`.
+- **Healthcheck:** Monitored via `step ca health --ca-url https://localhost:9000`.
 - **Resources:** Limited to 0.2 CPU and 128M RAM.
 
 ## Security (Docker Secrets)
 
-The CA uses external Docker secrets for sensitive files:
-- `step_ca_password`: The password for the root CA key.
-- `step_ca_root_ca_key`: The root CA private key.
-- `step_ca_root_ca_crt`: The root CA certificate.
+The CA uses external Docker secrets for sensitive files. Note the internal targets used by the service:
+
+| Secret Source | Target Path | Description |
+| :--- | :--- | :--- |
+| `step_ca_password` | `/run/secrets/step_ca_password` | Password for initializing the CA |
+| `step_ca_password` | `/run/secrets/root_ca_key_password` | Alias for root key password |
+| `step_ca_root_ca_key` | `/run/secrets/root_ca_key` | The root CA private key |
+| `step_ca_root_ca_crt` | `/run/secrets/root_ca.crt` | The root CA certificate |
 
 *(Note: These secrets must exist before the stack is deployed.)*
