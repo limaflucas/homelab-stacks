@@ -48,6 +48,7 @@ The following external secrets are required:
 echo "secure_password" | docker secret create postgresql_superuser_password -
 echo "secure_password" | docker secret create postgresql_replication_password -
 echo "secure_password" | docker secret create pgpool_admin_password -
+openssl rand -base64 32 | docker secret create pgpool_aes_key -
 ```
 
 ### 4. Storage & Config
@@ -55,6 +56,7 @@ Ensure the following directories and files exist on the host nodes:
 - **Data Path**: `/opt/docker-data/databases/postgresql/data`
 - **Init Scripts**: `/mnt/docker-data/databases/postgresql/init/01-users-dbs.sh`
 - **HBA Config**: `/mnt/docker-data/databases/postgresql/pg_hba_homelab.conf`
+- **Pgpool Passwords**: `/mnt/docker-data/databases/pgpool/pool_passwd` (Must be generated using `pg_md5` or `pg_enc`)
 
 ## Deployment
 
