@@ -17,8 +17,8 @@ This directory contains the configuration for **Gluetun**, a lightweight Swiss-a
 - **Kill Switch:** Built-in firewall prevents traffic leaks if the VPN tunnel drops.
 - **Proxy Support:** Enables other services to route traffic through the VPN using `gluetun:8888` (HTTP) or `gluetun:1080` (SOCKS5).
 - **Secrets Management:** Sensitive credentials (Private Key) and filters (Countries) are managed via Docker Secrets.
-- **Dynamic Updates:** Automatically downloads the latest `servers.json` from GitHub on every startup to ensure the server list is up-to-date.
-- **Health Monitoring:** Built-in healthcheck monitors the VPN status on port `9999`.
+- **Custom Initialization:** The entrypoint installs `curl` at startup for troubleshooting and emergency use.
+- **Automated Updates:** Uses the built-in updater to refresh VPN server lists every 36 hours.
 
 ## Installation Steps
 
@@ -66,6 +66,7 @@ services:
     - `8888`: HTTP Proxy
     - `1080`: SOCKS5 Proxy
     - `8388`: Shadowsocks (TCP/UDP)
-- **Dynamic servers.json:** The entrypoint script uses `wget` to fetch the latest server list from the Gluetun GitHub repository before starting the VPN client.
-- **Healthcheck:** Configured to check `http://127.0.0.1:9999/` every 90 seconds.
-- **Logging:** `LOG_LEVEL` is set to `debug` for detailed troubleshooting.
+- **WireGuard Implementation:** Set to `userspace` for broader compatibility in Swarm environments.
+- **Server Updates:** `UPDATER_PERIOD` is set to `36h` to keep the server list fresh.
+- **Healthcheck:** Currently disabled (commented out) in the compose configuration.
+- **Custom Entrypoint:** Automatically runs `apk add curl` on startup to ensure tools are available for diagnostics.
