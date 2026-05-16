@@ -1,0 +1,82 @@
+services:
+  gluetun:
+    image: ghcr.io/qdm12/gluetun:v3
+    # NET_ADMIN is required for the TUN device and iptables
+    cap_add:
+      - NET_ADMIN
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        # 1. Load Countries from Secret
+        if [ -f /run/secrets/vpn_countries ]; then
+          export SERVER_COUNTRIES=$$(cat /run/secrets/vpn_countries)
+        fi
+
+        # 2. Download latest servers.json to /gluetun/servers.json
+        # This is where Gluetun looks for custom/updated server lists
+        echo "Updating servers.json from GitHub..."
+        mkdir -p /gluetun
+        wget -qO /gluetun/servers.json https://raw.githubusercontent.com/qdm12/gluetun/master/internal/storage/servers.json
+
+        exec /gluetun-entrypoint
+    environment:
+      - TZ=America/Halifax
+      # See https://github.com/qdm12/gluetun-wiki for provider setups
+      - VPN_SERVICE_PROVIDER=nordvpn
+      - VPN_TYPE=wireguard
+      - HTTPPROXY=on
+      - SOCKS5PROXY=on
+      - FIREWALL=on
+      - WIREGUARD_PRIVATE_KEY_SECRETFILE=/run/secrets/vpn_private_key
+      - LOG_LEVEL=debug
+    networks:
+      - infra
+      - media-internal
+    volumes:
+      - /mnt/docker-data/infra/gluetun:/gluetun
+    ports:
+      - "8888:8888/tcp"
+      - "1080:1080/tcp"
+      - "8388:8388/tcp"
+      - "8388:8388/udp"
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+      restart_policy:
+        condition: any
+        delay: 10s
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:9999/"]
+      interval: 90s
+      timeout: 10s
+      retries: 5
+      start_period: 120s
+    secrets:
+      - vpn_countries
+      - vpn_private_key
+
+networks:
+  infra:
+    external: true
+  media-internal:
+    driver: overlay
+    attachable: true
+    internal: true
+
+secrets:
+  vpn_countries:
+    external: true
+  vpn_private_key:
+    external: true
+  vpn_addresses:
+    external: true
