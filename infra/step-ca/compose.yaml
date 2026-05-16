@@ -11,9 +11,11 @@ services:
       - DOCKER_STEPCA_INIT_ACME=true
       - DOCKER_STEPCA_INIT_REMOTE_MANAGEMENT=true
       - DOCKER_STEPCA_INIT_PASSWORD_FILE=/run/secrets/step_ca_password
+      - STEP_PASSWORD_FILE=/run/secrets/step_ca_password
     volumes:
       - /mnt/docker-data/infra/step-ca/certs:/home/step/certs
       - /mnt/docker-data/infra/step-ca/db:/home/step/db
+      - /mnt/docker-data/infra/step-ca/config:/home/step/config
     secrets:
       - source: step_ca_password
         target: root_ca_key_password
