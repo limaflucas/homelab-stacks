@@ -10,20 +10,27 @@ services:
       - DOCKER_STEPCA_INIT_PROVISIONER_NAME=step-ca
       - DOCKER_STEPCA_INIT_ACME=true
       - DOCKER_STEPCA_INIT_REMOTE_MANAGEMENT=true
-      - DOCKER_STEPCA_INIT_PASSWORD_FILE=/run/secrets/step_ca_password
-      - STEP_PASSWORD_FILE=/run/secrets/step_ca_password
+      - DOCKER_STEPCA_INIT_PASSWORD_FILE=/run/secrets/root_ca_key_password
+
+    # FIX 1: Consolidate storage into a single directory mapping so secrets survive restarts
     volumes:
+      - /mnt/docker-data/infra/step-ca/config:/home/step/config
       - /mnt/docker-data/infra/step-ca/certs:/home/step/certs
       - /mnt/docker-data/infra/step-ca/db:/home/step/db
-      - /mnt/docker-data/infra/step-ca/config:/home/step/config
+    # FIX 2: Explicitly pass ownership of the secrets to the non-root step user (UID 1000)
     secrets:
       - source: step_ca_password
         target: root_ca_key_password
+        uid: "1000"
+        gid: "1000"
       - source: step_ca_root_ca_key
         target: root_ca_key
+        uid: "1000"
+        gid: "1000"
       - source: step_ca_root_ca_crt
         target: root_ca.crt
-      - step_ca_password
+        uid: "1000"
+        gid: "1000"
     networks:
       - infra
     deploy:
