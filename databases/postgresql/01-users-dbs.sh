@@ -23,4 +23,15 @@ CREATE DATABASE outline OWNER outline;
 CREATE USER vaultwarden WITH PASSWORD 'change_me' LOGIN;
 CREATE DATABASE vaultwarden OWNER vaultwarden;
 
+CREATE USER seerr WITH PASSWORD 'change_me' LOGIN;
+CREATE DATABASE seerr OWNER seerr;
+
+CREATE USER radarr WITH PASSWORD 'change_me' LOGIN;
+CREATE DATABASE radarr OWNER radarr;
+CREATE DATABASE radarr_logs OWNER radarr;
+
+CREATE USER sonarr WITH PASSWORD 'change_me' LOGIN;
+CREATE DATABASE sonarr OWNER sonarr;
+CREATE DATABASE sonarr_logs OWNER sonarr;
+
 EOSQL

@@ -31,7 +31,7 @@ services:
       - postgresql_replication_password
       - pgpool_admin_password
     networks:
-      - databases
+      - internal
     deploy:
       replicas: 1
       placement:
@@ -87,7 +87,7 @@ services:
       - postgresql_superuser_password
       - postgresql_replication_password
     networks:
-      - databases
+      - internal
     deploy:
       replicas: 2
       placement:
@@ -113,10 +113,6 @@ services:
         chmod 600 /opt/bitnami/pgpool/conf/.pgpoolkey
         exec /opt/bitnami/scripts/pgpool/entrypoint.sh \
             /opt/bitnami/scripts/pgpool/run.sh
-    ports:
-      - target: 5432
-        published: 5432
-        mode: ingress
     volumes:
       - /mnt/docker-data/databases/pgpool/pool_passwd:/opt/bitnami/pgpool/conf/pool_passwd
     environment:
@@ -126,7 +122,7 @@ services:
       - PGPOOL_ENABLE_LOAD_BALANCING=yes
       - PGPOOL_ENABLE_STATEMENT_LOAD_BALANCING=yes
       - PGPOOL_DISABLE_LOAD_BALANCE_ON_WRITE=transaction
-      - PGPOOL_MAX_POOL=15
+      - PGPOOL_MAX_POOL=60
       # Streaming replication check
       - PGPOOL_SR_CHECK_USER=pgpool
       - PGPOOL_SR_CHECK_PASSWORD_FILE=/run/secrets/pgpool_admin_password
@@ -154,7 +150,7 @@ services:
       - postgresql_superuser_password
       - pgpool_aes_key
     networks:
-      - databases
+      - internal
     deploy:
       replicas: 3
       placement:
@@ -165,8 +161,10 @@ services:
         window: 120s
 
 networks:
-  databases:
-    external: true
+    internal:
+      driver: overlay
+      attachable: true
+      internal: true
 
 secrets:
   postgresql_superuser_password:
