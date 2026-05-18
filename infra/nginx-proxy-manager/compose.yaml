@@ -44,7 +44,8 @@ services:
           memory: 512M
     networks:
       - infra
-      - databases
+      - databases_internal
+      - infra_media-internal
 
 secrets:
   npm_db_password:
@@ -53,5 +54,7 @@ secrets:
 networks:
   infra:
     external: true
-  databases:
+  databases_internal:
+    external: true
+  infra_media-internal:
     external: true
