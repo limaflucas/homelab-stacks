@@ -52,15 +52,29 @@ services:
         limits:
           cpus: '0.5'
           memory: 512M
-    # healthcheck:
-    #   test: ["CMD", "curl", "-f", "http://127.0.0.1:9999/"]
-    #   interval: 20s
-    #   timeout: 10s
-    #   retries: 10
-    #   start_period: 90s
     secrets:
       - vpn_countries
       - vpn_private_key
+  
+  gluetun-socks:
+    image: gogost/gost:latest
+    # -L configures the incoming plaintext SOCKS5 server on port 1080
+    # -F forwards all received traffic cleanly to Gluetun's HTTP proxy on port 8888
+    command: ["-L", "socks5://:1080", "-F", "http://gluetun:8888"]
+    networks:
+      - media-internal # STRICTLY INTERNAL: No public internet access mapping
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+      restart_policy:
+        condition: any
+        delay: 10s
+      resources:
+        limits:
+          cpus: '0.2'
+          memory: 128M
 
 networks:
   infra:
