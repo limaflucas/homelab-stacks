@@ -49,10 +49,10 @@ services:
           cpus: '0.5'
           memory: 512M
     networks:
-      - databases
+      - databases_internal
 
 networks:
-  databases:
+  databases_internal:
     external: true
 
 secrets:
