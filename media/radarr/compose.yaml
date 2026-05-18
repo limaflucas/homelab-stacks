@@ -1,0 +1,40 @@
+services:
+  radarr:
+    image: lscr.io/linuxserver/radarr:latest
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=America/Halifax
+      - FILE__RADARR__POSTGRES__PASSWORD=/run/secrets/radarr_database_password
+      - RADARR__POSTGRES__HOST=pgpool
+      - RADARR__POSTGRES__USER=radarr
+      - RADARR__POSTGRES__MAINDB=radarr
+      - RADARR__POSTGRES__LOGDB=radarr_logs
+    volumes:
+      - /mnt/docker-data/media/radarr/config:/config
+      - /mnt/pirateflix/media/movies:/movies
+      - /mnt/pirateflix/downloads/complete:/config/Downloads/complete
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+    networks:
+      - infra_media-internal
+      - databases_internal
+    secrets:
+      - radarr_database_password
+
+networks:
+  infra_media-internal:
+    external: true
+  databases_internal:
+    external: true
+
+secrets:
+  radarr_database_password:
+    external: true
