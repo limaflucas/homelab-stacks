@@ -32,7 +32,7 @@ services:
         constraints:
           - node.role == manager
     networks:
-      - databases
+      - databases_internal
       - infra
 
 secrets:
@@ -44,7 +44,7 @@ secrets:
     external: true
 
 networks:
-  databases:
+  databases_internal:
     external: true
   infra:
     external: true
