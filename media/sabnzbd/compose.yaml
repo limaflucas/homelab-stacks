@@ -1,0 +1,49 @@
+services:
+  sabnzbd:
+    image: lscr.io/linuxserver/sabnzbd:latest
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        echo "Waiting for Gluetun to register on the overlay network..."
+        until getent hosts gluetun > /dev/null 2>&1; do
+          sleep 3
+        done
+
+        # 1. Extract Gluetun's active Swarm Virtual IP (VIP)
+        GLUETUN_IP=$$(getent hosts gluetun | awk '{print $$1}' | head -n 1)
+        echo "Discovered dynamic Gluetun IP: $$GLUETUN_IP"
+
+        # 2. Inject it as the primary nameserver inside SABnzbd
+        echo "nameserver $$GLUETUN_IP" > /etc/resolv.conf
+
+        # 3. Hand control back to LinuxServer.io's native S6 base initialization system
+        exec /init
+    environment:
+      - TZ=America/Halifax
+      - PUID=1000
+      - PGID=1000
+    volumes:
+      - /mnt/docker-data/media/sabnzbd/config:/config
+      - /mnt/pirateflix/downloads/incomplete:/config/Downloads/incomplete
+      - /mnt/pirateflix/downloads/complete:/config/Downloads/complete
+    networks:
+      - infra_media-internal
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+      restart_policy:
+        condition: on-failure
+        delay: 10s
+        max_attempts: 5
+        window: 120s
+
+networks:
+  infra_media-internal:
+    external: true
