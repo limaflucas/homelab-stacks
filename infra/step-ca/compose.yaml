@@ -1,8 +1,6 @@
 services:
   step-ca:
     image: smallstep/step-ca:latest
-    ports:
-      - "9000:9000"
     environment:
       - TZ=America/Halifax
       - DOCKER_STEPCA_INIT_NAME=Homelab CA
@@ -11,13 +9,8 @@ services:
       - DOCKER_STEPCA_INIT_ACME=true
       - DOCKER_STEPCA_INIT_REMOTE_MANAGEMENT=true
       - DOCKER_STEPCA_INIT_PASSWORD_FILE=/run/secrets/root_ca_key_password
-
-    # FIX 1: Consolidate storage into a single directory mapping so secrets survive restarts
     volumes:
-      - /mnt/docker-data/infra/step-ca/config:/home/step/config
-      - /mnt/docker-data/infra/step-ca/certs:/home/step/certs
-      - /mnt/docker-data/infra/step-ca/db:/home/step/db
-    # FIX 2: Explicitly pass ownership of the secrets to the non-root step user (UID 1000)
+      - /mnt/docker-data/infra/step-ca:/home/step
     secrets:
       - source: step_ca_password
         target: root_ca_key_password
