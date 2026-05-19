@@ -12,10 +12,8 @@ services:
       - 81:81
     environment:
       TZ: 'America/Halifax'
-      # ACME configuration
       LE_SERVER: 'https://step-ca:9000/acme/acme/directory'
       DISABLE_IPV6: 'true'
-      # DB configuration
       DB_POSTGRES_HOST: pgpool
       DB_POSTGRES_PORT: 5432
       DB_POSTGRES_USER: npm
@@ -34,10 +32,9 @@ services:
       retries: 5
       start_period: 2m
     deploy:
-      replicas: 1
-      placement:
-        constraints:
-          - node.role == manager
+      mode: global
+      restart_policy:
+        condition: any      
       resources:
         limits:
           cpus: '0.5'
