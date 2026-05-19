@@ -4,8 +4,6 @@ services:
     # NET_ADMIN is required for the TUN device and iptables
     cap_add:
       - NET_ADMIN
-    devices:
-      - /dev/net/tun:/dev/net/tun
     entrypoint:
       - /bin/sh
       - -c
@@ -34,11 +32,6 @@ services:
       - media-internal
     volumes:
       - /mnt/docker-data/infra/gluetun:/gluetun
-    ports:
-      - "8888:8888/tcp"
-      - "1080:1080/tcp"
-      - "8388:8388/tcp"
-      - "8388:8388/udp"
     deploy:
       mode: replicated
       replicas: 1
@@ -63,6 +56,8 @@ services:
     command: ["-L", "socks5://:1080", "-F", "http://gluetun:8888"]
     networks:
       - media-internal # STRICTLY INTERNAL: No public internet access mapping
+    environment:
+      - TZ=America/Halifax
     deploy:
       replicas: 1
       placement:
