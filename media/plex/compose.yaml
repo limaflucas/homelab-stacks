@@ -2,14 +2,12 @@ services:
   plex:
     image: lscr.io/linuxserver/plex:latest
     hostname: plex.homelab
-    ports:
-      - 32400:32400
     environment:
       - PUID=1000
       - PGID=1000
       - TZ=America/Halifax
       - VERSION=docker
-      - ADVERTISE_IP=https://plex.homelab,http://plex.homelab
+      - PLEX_CLAIM=/run/secrets/plex_claim
     volumes:
       - /mnt/docker-data/media/plex/config:/config
       - /mnt/pirateflix/media/tv:/tv
@@ -29,10 +27,14 @@ services:
       - plex_claim
     networks:
       - infra_media-internal
+      - infra
 
 networks:
   infra_media-internal:
     external: true
+  infra:
+    external: true
+
 
 secrets:
   plex_claim:
