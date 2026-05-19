@@ -19,8 +19,6 @@ services:
     volumes:
       - /mnt/docker-data/infra/komodo/keys:/config/keys
       - /mnt/docker-data/infra/komodo/backups:/backups
-    ports:
-      - 9120:9120
     healthcheck:
       test: [ "CMD", "curl", "-f", "http://localhost:9120/" ]
       interval: 10s
