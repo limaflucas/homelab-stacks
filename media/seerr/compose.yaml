@@ -1,8 +1,6 @@
 services:
   seerr:
     image: ghcr.io/seerr-team/seerr:latest
-    ports:
-      - 5055:5055
     entrypoint:
       - /bin/sh
       - -c
@@ -15,7 +13,7 @@ services:
       - TZ=America/Halifax
       - PUID=1000
       - PGID=1000
-      - LOG_LEVEL=info
+      - LOG_LEVEL=INFO
       - DB_TYPE=postgres
       - DB_HOST=pgpool
       - DB_PORT=5432
@@ -28,7 +26,7 @@ services:
       interval: 30s
       timeout: 5s
       retries: 3
-      start_period: 20s
+      start_period: 60s
     deploy:
       replicas: 1
       placement:
@@ -43,11 +41,14 @@ services:
     networks:
       - infra_media-internal
       - databases_internal
+      - infra
 
 networks:
   infra_media-internal:
     external: true
   databases_internal:
+    external: true
+  infra:
     external: true
 
 secrets:
