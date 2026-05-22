@@ -25,12 +25,9 @@ services:
         uid: "1000"
         gid: "1000"
     networks:
-      - infra
+      - internet
     deploy:
       replicas: 1
-      placement:
-        constraints:
-          - node.role == manager
       resources:
         limits:
           cpus: '0.2'
@@ -43,8 +40,8 @@ services:
       start_period: 2m
 
 networks:
-  infra:
-    external: true
+  internet:
+    driver: overlay
 
 secrets:
   step_ca_password:

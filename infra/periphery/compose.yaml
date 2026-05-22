@@ -24,11 +24,11 @@ services:
         condition: on-failure
         delay: 5s
     networks:
-      - infra
+      - internet
 
 volumes:
   periphery_keys:
 
 networks:
-  infra:
-    external: true
+  internet:
+    driver: overlay

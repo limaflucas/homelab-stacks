@@ -40,18 +40,15 @@ services:
           cpus: '0.5'
           memory: 512M
     networks:
-      - infra
+      - internet
       - databases_internal
-      - infra_media-internal
 
 secrets:
   npm_db_password:
     external: true
 
 networks:
-  infra:
-    external: true
+  internet:
+    driver: overlay
   databases_internal:
-    external: true
-  infra_media-internal:
     external: true

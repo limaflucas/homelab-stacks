@@ -31,8 +31,7 @@ services:
           - node.role == manager
     networks:
       - databases_internal
-      - infra
-
+      - internet
 secrets:
   komodo_db_uri:
     external: true
@@ -44,5 +43,5 @@ secrets:
 networks:
   databases_internal:
     external: true
-  infra:
-    external: true
+  internet:
+    driver: overlay

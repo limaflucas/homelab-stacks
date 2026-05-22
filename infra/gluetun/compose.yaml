@@ -14,6 +14,7 @@ services:
         fi
 
         # 2. Add curl package for emergencies
+        apk update
         apk add curl
         exec /gluetun-entrypoint
     environment:
@@ -28,8 +29,8 @@ services:
       - WIREGUARD_IMPLEMENTATION=userspace
       - UPDATER_PERIOD=36h
     networks:
-      - infra
-      - media-internal
+      - internet
+      - media_internal
     volumes:
       - /mnt/docker-data/infra/gluetun:/gluetun
     deploy:
@@ -55,7 +56,7 @@ services:
     # -F forwards all received traffic cleanly to Gluetun's HTTP proxy on port 8888
     command: ["-L", "socks5://:1080", "-F", "http://gluetun:8888"]
     networks:
-      - media-internal # STRICTLY INTERNAL: No public internet access mapping
+      - media_internal # STRICTLY INTERNAL: No public internet access mapping
     environment:
       - TZ=America/Halifax
     deploy:
@@ -72,11 +73,10 @@ services:
           memory: 128M
 
 networks:
-  infra:
-    external: true
-  media-internal:
+  internet:
     driver: overlay
-    attachable: true
+  media_internal:
+    driver: overlay
     internal: true
 
 secrets:
