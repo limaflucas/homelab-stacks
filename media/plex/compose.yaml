@@ -26,13 +26,13 @@ services:
     secrets:
       - plex_claim
     networks:
-      - infra_media-internal
-      - infra
+      - infra_media_internal
+      - infra_internet
 
 networks:
-  infra_media-internal:
+  infra_media_internal:
     external: true
-  infra:
+  infra_internet:
     external: true
 
 

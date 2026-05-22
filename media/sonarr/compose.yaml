@@ -25,13 +25,13 @@ services:
           cpus: '0.5'
           memory: 1G
     networks:
-      - infra_media-internal
+      - infra_media_internal
       - databases_internal
     secrets:
       - sonarr_database_password
 
 networks:
-  infra_media-internal:
+  infra_media_internal:
     external: true
   databases_internal:
     external: true

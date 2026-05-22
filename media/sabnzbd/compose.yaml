@@ -28,7 +28,7 @@ services:
       - /mnt/pirateflix/downloads/incomplete:/config/Downloads/incomplete
       - /mnt/pirateflix/downloads/complete:/config/Downloads/complete
     networks:
-      - infra_media-internal
+      - infra_media_internal
     deploy:
       replicas: 1
       placement:
@@ -45,5 +45,5 @@ services:
         window: 120s
 
 networks:
-  infra_media-internal:
+  infra_media_internal:
     external: true

@@ -17,8 +17,8 @@ services:
           cpus: '0.5'
           memory: 512M
     networks:
-      - infra_media-internal
+      - infra_media_internal
 
 networks:
-  infra_media-internal:
+  infra_media_internal:
     external: true
