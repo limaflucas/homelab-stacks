@@ -8,7 +8,6 @@ services:
     secrets:
       - vaultwarden_db_password
       - vaultwarden_db_user
-    env_file: .env
     entrypoint: >
       /bin/sh -c " export DATABASE_URL=postgresql://$$(cat /run/secrets/vaultwarden_db_user):$$(cat /run/secrets/vaultwarden_db_password)@pgpool:5432/vaultwarden && /vaultwarden"
     volumes:
