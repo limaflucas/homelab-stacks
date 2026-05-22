@@ -1,61 +1,36 @@
 services:
-  vaultwarden-pgsql:
-    image: postgres:15-alpine
-    container_name: vaultwarden-pgsql
-    restart: always
-    secrets:
-      - db_password
-      - db_user
-    env_file: .env
-    environment:
-      POSTGRES_USER_FILE: /run/secrets/db_user
-      POSTGRES_PASSWORD_FILE: /run/secrets/db_password
-    volumes:
-      - /mnt/docker-data/security/vaultwarden-pgsql:/var/lib/postgresql/data
-    healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -U vaultwarden -d vaultwarden" ]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    deploy:
-      resources:
-        limits:
-          cpus: '0.5'
-          memory: 256M
-    networks:
-      - dockernet
-
   vaultwarden:
     image: vaultwarden/server:latest
     container_name: vaultwarden
+    environment:
+      - TZ=America/Halifax
     restart: always
     secrets:
-      - db_password
-      - db_user
+      - vaultwarden_db_password
+      - vaultwarden_db_user
     env_file: .env
     entrypoint: >
-      /bin/sh -c " export DATABASE_URL=postgresql://$$(cat /run/secrets/db_user):$$(cat /run/secrets/db_password)@vaultwarden-pgsql:5432/vaultwarden && /vaultwarden"
+      /bin/sh -c " export DATABASE_URL=postgresql://$$(cat /run/secrets/vaultwarden_db_user):$$(cat /run/secrets/vaultwarden_db_password)@pgpool:5432/vaultwarden && /vaultwarden"
     volumes:
       - /mnt/docker-data/security/vaultwarden:/data
-    ports:
-      - "8080:80"
-    depends_on:
-      vaultwarden-pgsql:
-        condition: service_healthy
     deploy:
       resources:
         limits:
           cpus: '0.5'
           memory: 256M
     networks:
-      - dockernet
+      - internal
+      - databases_internal
 
 networks:
-  dockernet:
+  internal:
+    driver: overlay
+    internal: true
+  databases_internal:
     external: true
 
 secrets:
-  db_password:
-    file: ./secrets/db_password.txt
-  db_user:
-    file: ./secrets/db_user.txt
+  vaultwarden_db_password:
+    external: true
+  vaultwarden_db_user:
+    external: true

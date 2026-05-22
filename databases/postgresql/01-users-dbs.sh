@@ -34,4 +34,7 @@ CREATE USER sonarr WITH PASSWORD 'change_me' LOGIN;
 CREATE DATABASE sonarr OWNER sonarr;
 CREATE DATABASE sonarr_logs OWNER sonarr;
 
+CREATE USER authelia WITH PASSWORD 'your_secure_password' LOGIN;
+CREATE DATABASE authelia OWNER authelia;
+
 EOSQL

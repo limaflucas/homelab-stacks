@@ -43,6 +43,7 @@ services:
       - internet
       - databases_internal
       - media_internal
+      - security_internal
 
 secrets:
   npm_db_password:
@@ -56,3 +57,5 @@ networks:
   media_internal:
     driver: overlay
     internal: true
+  security_internal:
+    external: true
