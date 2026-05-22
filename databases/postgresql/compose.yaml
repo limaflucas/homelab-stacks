@@ -161,10 +161,9 @@ services:
         window: 120s
 
 networks:
-    internal:
-      driver: overlay
-      attachable: true
-      internal: true
+  internal:
+    driver: overlay
+    internal: true
 
 secrets:
   postgresql_superuser_password:

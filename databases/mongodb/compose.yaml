@@ -31,11 +31,17 @@ services:
         published: 27017
         mode: host
     healthcheck:
-      test: [ "CMD", "mongosh", "--quiet", "--eval", "db.runCommand('ping').ok" ]
+      test: >
+        mongosh \
+          --username "$$(cat /run/secrets/mongodb_user)" \
+          --password "$$(cat /run/secrets/mongodb_password)" \
+          --authenticationDatabase admin \
+          --eval "db.adminCommand('ping').ok" \
+          --quiet
       interval: 10s
       timeout: 5s
       retries: 5
-      start_period: 60s
+      start_period: 45s
     deploy:
       replicas: 3 # one replica per node
       placement:
@@ -49,11 +55,12 @@ services:
           cpus: '0.5'
           memory: 512M
     networks:
-      - databases_internal
+      - internal
 
 networks:
-  databases_internal:
-    external: true
+  internal:
+    driver: overlay
+    internal: true
 
 secrets:
   mongodb_password:
