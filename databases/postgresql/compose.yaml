@@ -33,6 +33,10 @@ services:
     networks:
       - internal
     deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
       replicas: 1
       placement:
         constraints:
@@ -89,6 +93,10 @@ services:
     networks:
       - internal
     deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
       replicas: 2
       placement:
         max_replicas_per_node: 1
@@ -150,8 +158,12 @@ services:
       - postgresql_superuser_password
       - pgpool_aes_key
     networks:
-      - internal
+      - internal  
     deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M    
       replicas: 3
       placement:
         max_replicas_per_node: 1
