@@ -1,0 +1,90 @@
+###############################################################
+#                   Authelia Configuration                    #
+###############################################################
+
+# This file is managed by Gemini CLI
+
+theme: dark
+
+# Secrets should be replaced with strong random strings.
+# You can generate them using: docker run authelia/authelia:latest authelia crypto rand --length 64 --charset alphanumeric
+# jwt_secret: 'PLACEHOLDER_JWT_SECRET_CHANGE_ME'
+
+default_redirection_url: https://auth.homelab
+
+server:
+  host: 0.0.0.0
+  port: 9091
+
+log:
+  level: info
+
+totp:
+  issuer: Authelia Homelab
+
+authentication_backend:
+  password_reset:
+    disable: true
+  file:
+    path: /config/users_database.yml
+    search_email: false
+
+access_control:
+  default_policy: deny
+  rules:
+    - domain: auth.homelab
+      policy: bypass
+    - domain: "*.homelab"
+      policy: one_factor
+
+session:
+  name: authelia_session
+  # secret: 'PLACEHOLDER_SESSION_SECRET_CHANGE_ME'
+  expiration: 1h
+  inactivity: 30m
+  domain: homelab
+
+storage:
+  postgres:
+    host: pgpool
+    port: 5432
+    database: authelia
+    username: authelia
+    # password: 'PLACEHOLDER_DATABASE_PASSWORD_CHANGE_ME'
+
+notifier:
+  filesystem:
+    filename: /config/emails.txt
+
+identity_providers:
+  oidc:
+    # hmac_secret is loaded from Docker Secret / Environment Variable
+    # issuer_private_key is loaded from Docker Secret / Environment Variable
+    clients:
+      - id: outline
+        description: Outline Wiki
+        secret: '$pbkdf2-sha512$310000$JSM1f9ycOp86.jLBEQ7X/A$BxsDC5a0QwD/ikR/6yPYG/oRwyqBIY8vJ7ld4lnFuHjpIIcK.brgXjFgdsHVAmUq7e08ZUNlUIwXEM5eqd6OkA'
+        public: false
+        authorization_policy: one_factor
+        redirect_uris:
+          - https://outline.homelab/auth/oidc.callback
+        scopes:
+          - openid
+          - profile
+          - email
+          - groups
+        userinfo_signing_algorithm: none
+
+      - id: komodo
+        description: Komodo Core
+        secret: '$pbkdf2-sha512$310000$NdkBJF.rDEsSqpFpT0nY4g$4SLltN7jLPuIoDwzftBWzEJVVt8ZNRb4aysaGGdHTsPGE15/110FvXGfMCpw.SxDtUJspr4y7Q8F8mLmzNAn7w'
+        public: false
+        authorization_policy: one_factor
+        redirect_uris:
+          - https://komodo.homelab/api/auth/callback/oidc
+        scopes:
+          - openid
+          - profile
+          - email
+          - groups
+        userinfo_signing_algorithm: none

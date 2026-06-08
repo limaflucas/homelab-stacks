@@ -1,20 +1,49 @@
 services:
   authelia:
     image: authelia/authelia:latest
-    container_name: authelia
     restart: always
+    environment:
+      - AUTHELIA_CONFIGURATION_PATH=/run/secrets/authelia_config
+      - AUTHELIA_JWT_SECRET_FILE=/run/secrets/authelia_jwt_secret
+      - AUTHELIA_SESSION_SECRET_FILE=/run/secrets/authelia_session_secret
+      - AUTHELIA_STORAGE_POSTGRES_PASSWORD_FILE=/run/secrets/authelia_db_password
+      - AUTHELIA_IDENTITY_PROVIDERS_OIDC_HMAC_SECRET_FILE=/run/secrets/authelia_oidc_hmac_secret
+      - AUTHELIA_IDENTITY_PROVIDERS_OIDC_ISSUER_PRIVATE_KEY_FILE=/run/secrets/authelia_oidc_issuer_private_key
     volumes:
-      - /mnt/docker-data/security/authelia:/config
-    ports:
-      - "9091:9091"
+      - /mnt/docker-data/security/authelia/config:/config
+    secrets:
+      - authelia_config
+      - authelia_jwt_secret
+      - authelia_session_secret
+      - authelia_db_password
+      - authelia_oidc_hmac_secret
+      - authelia_oidc_issuer_private_key
     deploy:
       resources:
         limits:
           cpus: '0.5'
           memory: 256M
     networks:
-      - dockernet
+      - internal
+      - databases_internal
+
+secrets:
+  authelia_config:
+    file: /mnt/docker-data/security/authelia/configuration.yml
+  authelia_jwt_secret:
+    external: true
+  authelia_session_secret:
+    external: true
+  authelia_db_password:
+    external: true
+  authelia_oidc_hmac_secret:
+    external: true
+  authelia_oidc_issuer_private_key:
+    external: true
 
 networks:
-  dockernet:
+  internal:
+    driver: overlay
+    internal: true
+  databases_internal:
     external: true
