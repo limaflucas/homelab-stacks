@@ -18,7 +18,7 @@ services:
       replicas: 1
       placement:
         constraints:
-          - node.role == manager
+          - node.hostname != vm-docker-bragi
       resources:
         limits:
           cpus: '0.5'

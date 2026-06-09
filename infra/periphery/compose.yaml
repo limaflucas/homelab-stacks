@@ -23,6 +23,10 @@ services:
       restart_policy:
         condition: on-failure
         delay: 5s
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 128M
     networks:
       - internet
 
