@@ -36,13 +36,15 @@ Authelia is configured as an independent service on the `infra_internet` network
     # 1. Generate random strings for system secrets
     docker run --rm authelia/authelia:latest authelia crypto rand --length 64 --charset alphanumeric | docker secret create authelia_jwt_secret -
     docker run --rm authelia/authelia:latest authelia crypto rand --length 64 --charset alphanumeric | docker secret create authelia_session_secret -
+    docker run --rm authelia/authelia:latest authelia crypto rand --length 64 --charset alphanumeric | docker secret create authelia_storage_encryption_key -
     docker run --rm authelia/authelia:latest authelia crypto rand --length 64 --charset alphanumeric | docker secret create authelia_oidc_hmac_secret -
 
     # 2. Create the Database Password secret
     echo "your_secure_postgres_password" | docker secret create authelia_db_password -
 
-    # 3. Generate RSA Private Key for OIDC
-    docker run --rm authelia/authelia:latest authelia crypto pair rsa generate --bits 2048 --file.private-key /dev/stdout --file.public-key /dev/null | docker secret create authelia_oidc_issuer_private_key -
+    # 3. Generate RSA Private Key for OIDC (Note: In 4.38+, JWKS is preferred)
+    # Ensure no extra characters are captured in the secret.
+    docker run --rm authelia/authelia:latest authelia crypto pair rsa generate --bits 2048 --file.private-key /dev/stdout --file.public-key /dev/null | tr -d '\r' | docker secret create authelia_oidc_issuer_private_key -
     ```
 
 3.  **Generate OIDC Client Secrets:**
