@@ -1,6 +1,10 @@
 services:
   mongodb:
     image: mongo:8
+    ulimits:
+      nofile:
+        soft: 64000
+        hard: 64000
     hostname: "mongodb-{{.Node.Hostname}}"
     entrypoint: [ "bash", "-c" ]
     command:
@@ -53,7 +57,7 @@ services:
       resources:
         limits:
           cpus: '0.5'
-          memory: 512M
+          memory: 1G
     networks:
       - internal
 
