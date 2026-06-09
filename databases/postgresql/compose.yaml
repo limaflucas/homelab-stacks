@@ -160,11 +160,7 @@ services:
     networks:
       - internal  
     deploy:
-      mode: replicated
-      replicas: 1
-      placement:
-        constraints:
-          - node.hostname != vm-docker-bragi
+      mode: global
       resources:
         limits:
           cpus: '0.5'
