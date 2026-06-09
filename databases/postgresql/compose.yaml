@@ -161,12 +161,11 @@ services:
       - internal  
     deploy:
       resources:
+        mode: replicated
+        replicas: 1
         limits:
           cpus: '0.5'
           memory: 256M    
-      replicas: 3
-      placement:
-        max_replicas_per_node: 1
       restart_policy:
         condition: on-failure
         delay: 10s
