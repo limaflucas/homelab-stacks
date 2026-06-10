@@ -7,7 +7,7 @@ services:
       MINIO_ROOT_USER_FILE: /run/secrets/minio_root_user
       MINIO_ROOT_PASSWORD_FILE: /run/secrets/minio_root_password
     volumes:
-      - /opt/docker-data/databases/minio/data:/data
+      - /mnt/docker-data/databases/minio/data:/data
     secrets:
       - minio_root_user
       - minio_root_password
