@@ -2,15 +2,7 @@
 #                   Authelia Configuration                    #
 ###############################################################
 
-# This file is managed by Gemini CLI
-# Migration for version 4.38.0+
-
 theme: dark
-
-identity_validation:
-  reset_password:
-    # jwt_secret is loaded from environment variable via Swarm Secret
-    # jwt_secret: 'PLACEHOLDER_JWT_SECRET_CHANGE_ME'
 
 server:
   address: 'tcp://0.0.0.0:9091/'
@@ -30,28 +22,25 @@ authentication_backend:
 access_control:
   default_policy: deny
   rules:
-    - domain: auth.homelab.lan
+    - domain: auth.authelia.homelab
       policy: bypass
-    - domain: "*.homelab.lan"
+    - domain: "*.authelia.homelab"
       policy: one_factor
 
 session:
   name: authelia_session
-  # secret: 'PLACEHOLDER_SESSION_SECRET_CHANGE_ME'
   expiration: 1h
   inactivity: 30m
   cookies:
-    - domain: 'homelab.lan'
-      authelia_url: 'https://auth.homelab.lan'
-      # default_redirection_url removed as it was redundant with authelia_url
+    - domain: 'authelia.homelab'
+      authelia_url: 'https://auth.authelia.homelab'
+      default_redirection_url: 'https://redirect.authelia.homelab'
 
 storage:
-  # encryption_key: 'PLACEHOLDER_ENCRYPTION_KEY_CHANGE_ME'
   postgres:
     address: 'tcp://pgpool:5432'
     database: authelia
     username: authelia
-    # password: 'PLACEHOLDER_DATABASE_PASSWORD_CHANGE_ME'
 
 notifier:
   filesystem:
@@ -59,13 +48,15 @@ notifier:
 
 identity_providers:
   oidc:
-    # hmac_secret is loaded from Docker Secret / Environment Variable
-    # jwks is recommended over issuer_private_key in 4.38+
-    # issuer_private_key is loaded from Docker Secret / Environment Variable
+    jwks:
+      - key: |
+          -----BEGIN PRIVATE KEY-----
+          YOUR KEY HERE
+          -----END PRIVATE KEY-----
     clients:
       - client_id: outline
         client_name: Outline Wiki
-        client_secret: '$pbkdf2-sha512$310000$JSM1f9ycOp86.jLBEQ7X/A$BxsDC5a0QwD/ikR/6yPYG/oRwyqBIY8vJ7ld4lnFuHjpIIcK.brgXjFgdsHVAmUq7e08ZUNlUIwXEM5eqd6OkA'
+        client_secret: 'YOUR KEY HERE'
         public: false
         authorization_policy: one_factor
         redirect_uris:
@@ -79,7 +70,7 @@ identity_providers:
 
       - client_id: komodo
         client_name: Komodo Core
-        client_secret: '$pbkdf2-sha512$310000$NdkBJF.rDEsSqpFpT0nY4g$4SLltN7jLPuIoDwzftBWzEJVVt8ZNRb4aysaGGdHTsPGE15/110FvXGfMCpw.SxDtUJspr4y7Q8F8mLmzNAn7w'
+        client_secret: 'YOUR KEY HERE'
         public: false
         authorization_policy: one_factor
         redirect_uris:

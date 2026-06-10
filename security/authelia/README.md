@@ -43,8 +43,10 @@ Authelia is configured as an independent service on the `infra_internet` network
     echo "your_secure_postgres_password" | docker secret create authelia_db_password -
 
     # 3. Generate RSA Private Key for OIDC (Note: In 4.38+, JWKS is preferred)
-    # Ensure no extra characters are captured in the secret.
-    docker run --rm authelia/authelia:latest authelia crypto pair rsa generate --bits 2048 --file.private-key /dev/stdout --file.public-key /dev/null | tr -d '\r' | docker secret create authelia_oidc_issuer_private_key -
+    # This command generates a clean PEM file suitable for Docker Secrets.
+    docker run --rm authelia/authelia:latest authelia crypto pair rsa generate --bits 2048 --file.private-key /dev/stdout --file.public-key /dev/null | tr -d '\r' > oidc_key.pem
+    docker secret create authelia_oidc_issuer_private_key oidc_key.pem
+    rm oidc_key.pem
     ```
 
 3.  **Generate OIDC Client Secrets:**

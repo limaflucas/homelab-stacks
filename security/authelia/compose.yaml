@@ -3,24 +3,21 @@ services:
     image: authelia/authelia:latest
     restart: always
     environment:
-      - AUTHELIA_CONFIG_FILE=/run/secrets/authelia_config
+      - TZ=America/Halifax
+      - X_AUTHELIA_CONFIG_FILTERS=template
       - AUTHELIA_IDENTITY_VALIDATION_RESET_PASSWORD_JWT_SECRET_FILE=/run/secrets/authelia_jwt_secret
       - AUTHELIA_SESSION_SECRET_FILE=/run/secrets/authelia_session_secret
       - AUTHELIA_STORAGE_ENCRYPTION_KEY_FILE=/run/secrets/authelia_storage_encryption_key
       - AUTHELIA_STORAGE_POSTGRES_PASSWORD_FILE=/run/secrets/authelia_db_password
       - AUTHELIA_IDENTITY_PROVIDERS_OIDC_HMAC_SECRET_FILE=/run/secrets/authelia_oidc_hmac_secret
-      - AUTHELIA_IDENTITY_PROVIDERS_OIDC_ISSUER_PRIVATE_KEY_FILE=/run/secrets/authelia_oidc_issuer_private_key
-    command: authelia --config /run/secrets/authelia_config
     volumes:
       - /mnt/docker-data/security/authelia/config:/config
     secrets:
-      - authelia_config
       - authelia_jwt_secret
       - authelia_session_secret
       - authelia_storage_encryption_key
       - authelia_db_password
       - authelia_oidc_hmac_secret
-      - authelia_oidc_issuer_private_key
     deploy:
       resources:
         limits:
@@ -31,8 +28,6 @@ services:
       - databases_internal
 
 secrets:
-  authelia_config:
-    file: /mnt/docker-data/security/authelia/configuration.yml
   authelia_jwt_secret:
     external: true
   authelia_session_secret:
@@ -42,8 +37,6 @@ secrets:
   authelia_db_password:
     external: true
   authelia_oidc_hmac_secret:
-    external: true
-  authelia_oidc_issuer_private_key:
     external: true
 
 networks:
