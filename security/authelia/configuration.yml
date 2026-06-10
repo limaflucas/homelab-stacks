@@ -74,7 +74,7 @@ identity_providers:
         public: false
         authorization_policy: one_factor
         redirect_uris:
-          - https://komodo.homelab.lan/api/auth/callback/oidc
+          - https://komodo.homelab/auth/oidc/callback
         scopes:
           - openid
           - profile
