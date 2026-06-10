@@ -2,8 +2,6 @@ services:
   redis:
     image: redis:8-alpine
     hostname: "redis-{{.Node.Hostname}}"
-    volumes:
-      - /opt/docker-data/databases/redis/data:/data
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
