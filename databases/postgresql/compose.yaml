@@ -118,7 +118,6 @@ services:
     command:
       - |
         export PGPOOL_AES_KEY=$$(cat /run/secrets/pgpool_aes_key)
-        chmod 600 /opt/bitnami/pgpool/conf/.pgpoolkey
         exec /opt/bitnami/scripts/pgpool/entrypoint.sh \
             /opt/bitnami/scripts/pgpool/run.sh
     volumes:
@@ -130,7 +129,7 @@ services:
       - PGPOOL_ENABLE_LOAD_BALANCING=yes
       - PGPOOL_ENABLE_STATEMENT_LOAD_BALANCING=yes
       - PGPOOL_DISABLE_LOAD_BALANCE_ON_WRITE=transaction
-      - PGPOOL_MAX_POOL=60
+      - PGPOOL_MAX_POOL=15
       # Streaming replication check
       - PGPOOL_SR_CHECK_USER=pgpool
       - PGPOOL_SR_CHECK_PASSWORD_FILE=/run/secrets/pgpool_admin_password
@@ -164,7 +163,7 @@ services:
       resources:
         limits:
           cpus: '0.5'
-          memory: 256M    
+          memory: 512M    
       restart_policy:
         condition: on-failure
         delay: 10s
