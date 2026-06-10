@@ -6,19 +6,27 @@ services:
       KOMODO_DATABASE_URI_FILE: /run/secrets/komodo_db_uri
       KOMODO_HOST: https://komodo.homelab
       KOMODO_TITLE: Homelab Komodo
-      KOMODO_LOCAL_AUTH: "true"
+      KOMODO_LOCAL_AUTH: "false"
+      KOMODO_ENABLE_NEW_USERS: "false"
       KOMODO_DISABLE_CONFIRM_DIALOG: "false"
       KOMODO_PERIPHERY_PUBLIC_KEY: file:/config/keys/peripheries.pub
       KOMODO_WEBHOOK_SECRET_FILE: /run/secrets/komodo_webhook_secret
       KOMODO_JWT_SECRET_FILE: /run/secrets/komodo_jwt_secret
       KOMODO_FIRST_SERVER_NAME: "{{.Node.Hostname}}"
+      KOMODO_OIDC_ENABLED: "true"
+      KOMODO_OIDC_PROVIDER: https://auth.authelia.homelab
+      KOMODO_OIDC_REDIRECT_HOST: https://auth.authelia.homelab
+      KOMODO_OIDC_CLIENT_ID: komodo
+      KOMODO_OIDC_CLIENT_SECRET_FILE: /run/secrets/komodo_oidc_client_secret
     secrets:
       - komodo_db_uri
       - komodo_webhook_secret
       - komodo_jwt_secret
+      - komodo_oidc_client_secret
     volumes:
       - /mnt/docker-data/infra/komodo/keys:/config/keys
       - /mnt/docker-data/infra/komodo/backups:/backups
+      - /mnt/docker-data/infra/komodo/cas:/usr/local/share/ca-certificates
     healthcheck:
       test: [ "CMD", "curl", "-f", "http://localhost:9120/" ]
       interval: 10s
@@ -43,6 +51,8 @@ secrets:
   komodo_webhook_secret:
     external: true
   komodo_jwt_secret:
+    external: true
+  komodo_oidc_client_secret:
     external: true
 
 networks:
