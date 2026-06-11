@@ -48,6 +48,13 @@ notifier:
 
 identity_providers:
   oidc:
+    claims_policies:
+      outline_policy:
+        id_token:
+          - "email"
+          - "email_verified"
+          - "preferred_username"
+          - "name"
     jwks:
       - key: |
           -----BEGIN PRIVATE KEY-----
@@ -75,6 +82,7 @@ identity_providers:
         access_token_signed_response_alg: 'none'
         userinfo_signed_response_alg: 'none'
         token_endpoint_auth_method: 'client_secret_post'
+        claims_policy: outline_policy
 
       - client_id: komodo
         client_name: Komodo Core
