@@ -4,116 +4,52 @@ services:
   # See: https://docs.getoutline.com/s/hosting/doc/docker-7pfeLP5a8t
   outline:
     image: docker.getoutline.com/outlinewiki/outline:latest
-    container_name: outline
     restart: always
-    env_file: outline.env
-    ports:
-      - "3001:3000"
-    depends_on:
-      outline-pgsql:
-        condition: service_healthy
-      outline-redis:
-        condition: service_healthy
-      outline-minio:
-        condition: service_started
+    env_file: /mnt/docker-data/app/outline/outline.env
     volumes:
-      - /mnt/docker-data/apps/outline:/var/lib/outline/data
-      - ./certs/combined-ca.crt:/etc/ssl/certs/combined-ca.crt:ro
+      - /mnt/docker-data/apps/outline/data:/var/lib/outline/data
+      - /mnt/docker-data/app/outline/certs/root_ca.crt:/etc/ssl/certs/root_ca.crt:ro
     environment:
-      - NODE_EXTRA_CA_CERTS=/etc/ssl/certs/combined-ca.crt
+      - NODE_EXTRA_CA_CERTS=/etc/ssl/certs/root_ca.crt
     deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints:
+          - node.hostname != vm-docker-bragi      
+      restart_policy:
+        condition: any
       resources:
         limits:
           cpus: '1.0'
           memory: 1G
     networks:
-      - dockernet
-
-  # --- Database ---
-  outline-pgsql:
-    image: postgres:15-alpine
-    container_name: outline-pgsql
-    restart: always
+      - infra_internet
+      - databases_internal
     secrets:
-      - db_password
-      - db_user
-    environment:
-      POSTGRES_USER_FILE: /run/secrets/db_user
-      POSTGRES_PASSWORD_FILE: /run/secrets/db_password
-      POSTGRES_DB: outline
-    volumes:
-      - /mnt/docker-data/apps/outline-pgsql:/var/lib/postgresql/data
-      - ./certs/outline-pgsql.crt:/var/lib/postgresql/server.crt:ro
-      - ./certs/outline-pgsql.key:/var/lib/postgresql/server.key:ro
-    command: "postgres -c ssl=on -c ssl_cert_file=/var/lib/postgresql/server.crt -c ssl_key_file=/var/lib/postgresql/server.key"
-    healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -U outline -d outline" ]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    deploy:
-      resources:
-        limits:
-          cpus: '0.5'
-          memory: 512M
-    networks:
-      - dockernet
-
-  # --- Cache ---
-  outline-redis:
-    image: redis:7-alpine
-    container_name: outline-redis
-    restart: always
-    volumes:
-      - /mnt/docker-data/apps/outline-redis:/data
-    healthcheck:
-      test: [ "CMD", "redis-cli", "ping" ]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    deploy:
-      resources:
-        limits:
-          cpus: '0.5'
-          memory: 256M
-    networks:
-      - dockernet
-
-  # --- Storage (S3 Compatible) ---
-  outline-minio:
-    image: minio/minio
-    container_name: outline-minio
-    restart: always
-    command: server /data --console-address ":9001"
-    secrets:
+      - outline_secret_key
+      - outline_utils_secret_key
+      - outline_database_url
       - minio_root_user
       - minio_root_password
-    environment:
-      MINIO_ROOT_USER_FILE: /run/secrets/minio_root_user
-      MINIO_ROOT_PASSWORD_FILE: /run/secrets/minio_root_password
-    volumes:
-      - /mnt/docker-data/apps/outline-minio:/data
-    ports:
-      - "9000:9000"
-      - "9001:9001"
-    deploy:
-      resources:
-        limits:
-          cpus: '0.5'
-          memory: 512M
-    networks:
-      - dockernet
+      - outline_oidc_client_secret
 
 networks:
-  dockernet:
+  infra_internet:
+    external: true
+  databases_internal:
     external: true
 
 secrets:
-  db_password:
-    file: ./secrets/db_password.txt
-  db_user:
-    file: ./secrets/db_user.txt
+  outline_secret_key:
+    external: true
+  outline_utils_secret_key:
+    external: true
+  outline_database_url:
+    external: true
   minio_root_user:
-    file: ./secrets/minio_root_user.txt
+    external: true
   minio_root_password:
-    file: ./secrets/minio_root_password.txt
+    external: true
+  outline_oidc_client_secret:
+    external: true
