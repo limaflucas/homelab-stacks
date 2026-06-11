@@ -5,10 +5,10 @@ services:
   outline:
     image: docker.getoutline.com/outlinewiki/outline:latest
     restart: always
-    env_file: /mnt/docker-data/app/outline/outline.env
+    env_file: /mnt/docker-data/apps/outline/outline.env
     volumes:
       - /mnt/docker-data/apps/outline/data:/var/lib/outline/data
-      - /mnt/docker-data/app/outline/certs/root_ca.crt:/etc/ssl/certs/root_ca.crt:ro
+      - /mnt/docker-data/apps/outline/certs/root_ca.crt:/etc/ssl/certs/root_ca.crt:ro
     environment:
       - NODE_EXTRA_CA_CERTS=/etc/ssl/certs/root_ca.crt
     deploy:
