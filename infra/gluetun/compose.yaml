@@ -45,7 +45,7 @@ services:
       resources:
         limits:
           cpus: '0.5'
-          memory: 512M
+          memory: 1G
     secrets:
       - vpn_countries
       - vpn_private_key
