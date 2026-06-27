@@ -13,6 +13,7 @@ Welcome to the Homelab project. This repository contains Docker Swarm and Docker
 *   **[Komodo](./infra/komodo/README.md)**: Server and container management tool (Control Plane).
 *   **[Periphery](./infra/periphery/README.md)**: Remote agent for the Komodo management system.
 *   **[Nginx Proxy Manager](./infra/nginx-proxy-manager/README.md)**: Reverse proxy for managing access and SSL certificates, integrated with local CA.
+*   **[Registry](./infra/registry/README.md)**: Private Docker registry for container image hosting.
 *   **[Step-CA](./infra/step-ca/README.md)**: Private Certificate Authority for securing internal services with TLS.
 
 ### Databases
