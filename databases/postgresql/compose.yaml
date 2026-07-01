@@ -129,7 +129,7 @@ services:
       - PGPOOL_ENABLE_LOAD_BALANCING=yes
       - PGPOOL_ENABLE_STATEMENT_LOAD_BALANCING=yes
       - PGPOOL_DISABLE_LOAD_BALANCE_ON_WRITE=transaction
-      - PGPOOL_MAX_POOL=15
+      - PGPOOL_MAX_POOL=30
       # Streaming replication check
       - PGPOOL_SR_CHECK_USER=pgpool
       - PGPOOL_SR_CHECK_PASSWORD_FILE=/run/secrets/pgpool_admin_password
@@ -159,13 +159,17 @@ services:
     networks:
       - internal  
     deploy:
-      mode: global
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints:
+          - node.hostname != vm-docker-bragi      
       resources:
         limits:
           cpus: '0.5'
           memory: 512M    
       restart_policy:
-        condition: on-failure
+        condition: any
         delay: 10s
         window: 120s
 
