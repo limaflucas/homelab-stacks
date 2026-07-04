@@ -48,42 +48,12 @@ notifier:
 
 identity_providers:
   oidc:
-    claims_policies:
-      outline_policy:
-        id_token:
-          - "email"
-          - "email_verified"
-          - "preferred_username"
-          - "name"
     jwks:
       - key: |
           -----BEGIN PRIVATE KEY-----
           YOUR KEY HERE
           -----END PRIVATE KEY-----
     clients:
-      - client_id: outline
-        client_name: Outline Wiki
-        client_secret: 'YOUR KEY HERE'
-        public: false
-        authorization_policy: one_factor
-        redirect_uris:
-          - https://outline.homelab/auth/oidc.callback
-        scopes:
-          - openid
-          - profile
-          - email
-          - groups
-          - offline_access
-        response_types:
-          - 'code'
-        grant_types:
-          - 'authorization_code'
-          - 'refresh_token'
-        access_token_signed_response_alg: 'none'
-        userinfo_signed_response_alg: 'none'
-        token_endpoint_auth_method: 'client_secret_post'
-        claims_policy: outline_policy
-
       - client_id: komodo
         client_name: Komodo Core
         client_secret: 'YOUR KEY HERE'
