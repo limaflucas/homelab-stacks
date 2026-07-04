@@ -31,7 +31,7 @@ services:
       resources:
         limits:
           cpus: '0.2'
-          memory: 128M
+          memory: 512M
     healthcheck:
       test: [ "CMD", "step", "ca", "health", "--ca-url", "https://localhost:9000" ]
       interval: 30s
