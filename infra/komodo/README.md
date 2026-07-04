@@ -1,15 +1,24 @@
-# Infrastructure: Komodo Core
+# Infrastructure: Komodo Core & Periphery
 
-This directory contains the configuration for **Komodo Core**, the central control plane for server and container management in the homelab.
+This directory contains the configuration for **Komodo**, the server and container management system for the homelab. It consists of:
+- **Komodo Core**: The central control plane and dashboard.
+- **Komodo Periphery**: The lightweight agent deployed globally to every node in the Swarm cluster.
 
 ## Architecture
 
-- **Mode:** Docker Swarm Service
+### Komodo Core
+- **Mode:** Docker Swarm Service (replicated, 1 replica)
 - **Role:** Control Plane / Dashboard
 - **Database:** Shared MongoDB Replica Set (in `databases/mongodb`)
-- **Agents:** Managed via **Komodo Periphery** (deployed globally via `infra/periphery`)
-- **Network:** Connected to `databases` (for MongoDB) and `infra` (for proxy/internal communication).
-- **Placement:** Restricted to a **manager node** for stable state management.
+- **Network:** Connected to `databases_internal` (for MongoDB) and `internet` (for proxy/internal communication).
+- **Placement:** Restricted to a manager node for stable state management.
+
+### Komodo Periphery
+- **Mode:** Docker Swarm Service (`global` - one instance per node)
+- **Role:** Remote Management Agent / System Monitoring
+- **Connection:** Connects back to **Komodo Core** via WebSockets (`ws://komodo:9120`).
+- **Identity:** Automatically identifies itself using the node's hostname (`{{.Node.Hostname}}`).
+- **Network:** Connected to the `internet` overlay network.
 
 ## Installation Steps
 
@@ -72,16 +81,31 @@ openssl rand -base64 32 | tr -d '\n' | docker secret create komodo_webhook_secre
 ```bash
 docker stack deploy -c compose.yaml infra
 ```
+This will deploy both the **Komodo Core** control plane and the **Komodo Periphery** agents to all nodes in the cluster.
 
 ### 5. Post-Deployment
 Access the UI at `https://komodo.homelab` (configured via Nginx Proxy Manager) or directly at `http://<manager-ip>:9120`.
 
 ## Configuration Details
 
+### Komodo Core
 - **Persistence:**
     - Keys: `/mnt/docker-data/infra/komodo/keys` (contains `core.pub` and `peripheries.pub`)
     - Backups: `/mnt/docker-data/infra/komodo/backups`
 - **Security:**
     - JWT and Webhook secrets are managed via Docker secrets and mounted to `/run/secrets`.
     - Periphery authentication uses the public key stored in `/config/keys/peripheries.pub`.
-- **Periphery Agents:** The agents are deployed separately to every node in the Swarm. See `infra/periphery/README.md` for configuration details. Once deployed, they will connect back to this Core instance using the `PERIPHERY_CORE_ADDRESS`.
+
+### Komodo Periphery
+- **Core Communication:** 
+    - Address: `ws://komodo:9120`
+    - Public Key: Authenticates the Core using the public key located at `/config/keys/core.pub` (mounted from `infra/komodo`).
+- **Persistence:** 
+    - Uses a named volume `periphery_keys` for agent-specific key storage.
+- **System Monitoring:** 
+    - Mounts `/var/run/docker.sock` to manage containers.
+    - Mounts `/proc` (read-only) for system metrics gathering.
+- **TLS & Trust:** 
+    - Mounts the internal Root CA from `infra/step-ca` to `/usr/local/share/ca-certificates/homelab-root-ca.crt` to establish trust for secure communications.
+- **Timezone:** `America/Halifax`
+
