@@ -1,0 +1,121 @@
+services:
+  arcane:
+    image: ghcr.io/getarcaneapp/manager:latest
+    healthcheck:
+      test: ['CMD', '/app/arcane', 'health']
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /mnt/docker-data/infra/arcane/manager/data:/app/data
+      - /mnt/docker-data/infra/arcane/manager/projects:/app/data/projects
+    environment:
+      - TZ=America/Halifax
+      - APP_URL=http://arcane:3552
+      - PUID=1000
+      - PGID=1000
+      - ENCRYPTION_KEY_FILE=/run/secrets/arcane_encryption_key
+      - JWT_SECRET_FILE=/run/secrets/arcane_jwt_secret
+      - DATABASE_URL_FILE=/run/secrets/arcane_database_url
+    secrets:
+      - arcane_encryption_key
+      - arcane_jwt_secret
+      - arcane_database_url
+    networks:
+      - internet
+      - internal
+      - databases_internal
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+      resources:
+        limits:
+          cpus: '1'
+          memory: 512M
+      restart_policy:
+        condition: on-failure
+  
+  arcane-environment-agent:
+    image: ghcr.io/getarcaneapp/arcane-headless:latest
+    environment:
+      - TZ=America/Halifax
+      - EDGE_AGENT=true
+      - EDGE_TRANSPORT=auto
+      - AGENT_TOKEN_FILE=/run/secrets/arcane-environment-agent-token-{{.Node.Hostname}}
+      - MANAGER_API_URL=http://arcane:3552
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /mnt/docker-data/infra/arcane/agents/env-{{.Node.Hostname}}/data:/app/data
+    networks:
+      - internal
+    secrets:
+      - arcane-environment-agent-token-vm-docker-adam
+      - arcane-environment-agent-token-vm-docker-zeus
+      - arcane-environment-agent-token-vm-docker-bragi
+    deploy:
+      mode: global
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+      restart_policy:
+        condition: on-failure
+    
+  arcane-swarm-agent:
+    image: ghcr.io/getarcaneapp/arcane-headless:latest
+    environment:
+      - TZ=America/Halifax
+      - EDGE_AGENT=true
+      - EDGE_TRANSPORT=auto
+      - AGENT_TOKEN_FILE=/run/secrets/arcane-swarm-agent-token-{{.Node.Hostname}}
+      - MANAGER_API_URL=http://arcane:3552
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /mnt/docker-data/infra/arcane/agents/swarm-{{.Node.Hostname}}/data:/app/data
+    networks:
+      - internal
+    secrets:
+      - arcane-swarm-agent-token-vm-docker-adam
+      - arcane-swarm-agent-token-vm-docker-zeus
+      - arcane-swarm-agent-token-vm-docker-bragi
+    deploy:
+      mode: global
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+      restart_policy:
+        condition: on-failure
+    
+networks:
+  internet:
+    driver: overlay
+  internal:
+    driver: overlay
+    internal: true
+  databases_internal:
+    external: true
+
+secrets:
+  arcane_encryption_key:
+    external: true
+  arcane_jwt_secret:
+    external: true
+  arcane_database_url:
+    external: true
+  arcane-environment-agent-token-vm-docker-adam:
+    external: true
+  arcane-environment-agent-token-vm-docker-zeus:
+    external: true
+  arcane-environment-agent-token-vm-docker-bragi:
+    external: true
+  arcane-swarm-agent-token-vm-docker-adam:
+    external: true
+  arcane-swarm-agent-token-vm-docker-zeus:
+    external: true
+  arcane-swarm-agent-token-vm-docker-bragi:
+    external: true
