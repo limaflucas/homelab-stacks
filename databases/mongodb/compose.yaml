@@ -47,9 +47,7 @@ services:
       retries: 5
       start_period: 45s
     deploy:
-      replicas: 3 # one replica per node
-      placement:
-        max_replicas_per_node: 1 # enforce one per node
+      mode: global
       restart_policy:
         condition: on-failure
         delay: 10s
@@ -59,7 +57,9 @@ services:
           cpus: '0.5'
           memory: 1G
     networks:
-      - internal
+      internal:
+        aliases:
+          - mongodb-{{.Node.Hostname}}
 
 networks:
   internal:
