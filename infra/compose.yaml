@@ -277,6 +277,7 @@ services:
       - /mnt/docker-data/services/komodo/keys:/config/keys
       - /mnt/docker-data/services/komodo/backups:/backups
       - /mnt/docker-data/services/komodo/cas:/usr/local/share/ca-certificates
+      - /mnt/docker-data/services/komodo/repos:/repo-cache
     healthcheck:
       test: [ "CMD", "curl", "-f", "http://localhost:9120/" ]
       interval: 10s
