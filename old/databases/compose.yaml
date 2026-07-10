@@ -15,23 +15,27 @@ services:
       - POSTGRES_PASSWORD_FILE=/run/secrets/postgresql_superuser_password
       - POSTGRES_DB=postgres
       - POSTGRES_INITDB_ARGS=--encoding=UTF8 --locale=en_US.UTF-8
-    command: |
-      postgres
-        -c wal_level=replica
-        -c hot_standby=on
-        -c max_wal_senders=10
-        -c max_replication_slots=10
-        -c wal_keep_size=256
-        -c synchronous_commit=on
-        -c archive_mode=off
-        -c listen_addresses='*'
-        -c hba_file=/var/lib/postgresql/pg_hba_homelab.conf
+    entrypoint: [ "/bin/bash", "-c" ]
+    command:
+      - |
+        apt update
+        apt install -y postgresql-17-pgvector
+
+        exec docker-entrypoint.sh postgres \
+          -c wal_level=replica \
+          -c hot_standby=on \
+          -c max_wal_senders=10 \
+          -c max_replication_slots=10 \
+          -c wal_keep_size=256 \
+          -c synchronous_commit=on \
+          -c archive_mode=off \
+          -c listen_addresses='*' \
+          -c max_connections=200 \
+          -c hba_file=/var/lib/postgresql/pg_hba_homelab.conf
     secrets:
       - postgresql_superuser_password
       - postgresql_replication_password
       - pgpool_admin_password
-    networks:
-      - internal
     deploy:
       resources:
         limits:
@@ -50,7 +54,6 @@ services:
   #############################################
   # POSTGRESQL STANDBYS
   #############################################
-
   pgsql-standby:
     image: postgres:17
     hostname: postgresql-{{.Node.Hostname}}
@@ -65,6 +68,9 @@ services:
     entrypoint: [ "/bin/bash", "-c" ]
     command:
       - |
+        apt update
+        apt install -y postgresql-17-pgvector
+
         # Wait for primary to be ready
         until pg_isready -h postgresql-vm-docker-adam -p 5432 -U postgres; do
           echo "Waiting for primary postgresql-vm-docker-adam..."
@@ -86,12 +92,11 @@ services:
         exec docker-entrypoint.sh postgres \
           -c hot_standby=on \
           -c listen_addresses='*' \
+          -c max_connections=200 \
           -c hba_file=/var/lib/postgresql/pg_hba_homelab.conf
     secrets:
       - postgresql_superuser_password
       - postgresql_replication_password
-    networks:
-      - internal
     deploy:
       resources:
         limits:
@@ -111,9 +116,8 @@ services:
   #############################################
   # PGPOOL - Load balancer + failover
   #############################################
-
   pgpool:
-    image: public.ecr.aws/bitnami/pgpool:4
+    image: docker.io/bitnamilegacy/pgpool:4
     entrypoint: [ "/bin/bash", "-c" ]
     command:
       - |
@@ -129,7 +133,7 @@ services:
       - PGPOOL_ENABLE_LOAD_BALANCING=yes
       - PGPOOL_ENABLE_STATEMENT_LOAD_BALANCING=yes
       - PGPOOL_DISABLE_LOAD_BALANCE_ON_WRITE=transaction
-      - PGPOOL_MAX_POOL=30
+      - PGPOOL_MAX_POOL=50
       # Streaming replication check
       - PGPOOL_SR_CHECK_USER=pgpool
       - PGPOOL_SR_CHECK_PASSWORD_FILE=/run/secrets/pgpool_admin_password
@@ -156,8 +160,6 @@ services:
       - pgpool_admin_password
       - postgresql_superuser_password
       - pgpool_aes_key
-    networks:
-      - internal  
     deploy:
       mode: replicated
       replicas: 1
@@ -173,10 +175,129 @@ services:
         delay: 10s
         window: 120s
 
-networks:
-  internal:
-    driver: overlay
-    internal: true
+  #############################################
+  # MINIO
+  #############################################
+  minio:
+    image: minio/minio:latest
+    hostname: "minio-{{.Node.Hostname}}"
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER_FILE: /run/secrets/minio_root_user
+      MINIO_ROOT_PASSWORD_FILE: /run/secrets/minio_root_password
+    volumes:
+      - /mnt/docker-data/databases/minio/data:/data
+    secrets:
+      - minio_root_user
+      - minio_root_password
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.hostname != vm-docker-bragi      
+      restart_policy:
+        condition: on-failure
+        delay: 10s
+        max_attempts: 3
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+
+  #############################################
+  # MONGODB
+  #############################################
+  mongodb:
+    image: mongo:8
+    ulimits:
+      nofile:
+        soft: 64000
+        hard: 64000
+    hostname: "mongodb-{{.Node.Hostname}}"
+    entrypoint: [ "bash", "-c" ]
+    command:
+      - |
+        exec docker-entrypoint.sh mongod \
+          --quiet \
+          --replSet rs0 \
+          --bind_ip_all \
+          --wiredTigerCacheSizeGB 0.25 \
+          --keyFile /srv/mongodb/keyfile
+    secrets:
+      - mongodb_password
+      - mongodb_user
+      - source: mongodb_keyfile
+        target: /srv/mongodb/keyfile
+        uid: "999"
+        gid: "999"
+        mode: 0o400
+    environment:
+      TZ: "America/Halifax"
+      MONGO_INITDB_ROOT_USERNAME_FILE: "/run/secrets/mongodb_user"
+      MONGO_INITDB_ROOT_PASSWORD_FILE: "/run/secrets/mongodb_password"
+    volumes:
+      - /opt/docker-data/databases/mongodb/data:/data/db
+      - /opt/docker-data/databases/mongodb/config:/data/configdb
+    ports:
+      - target: 27017
+        published: 27017
+        mode: host
+    healthcheck:
+      test: >
+        mongosh \
+          --username "$$(cat /run/secrets/mongodb_user)" \
+          --password "$$(cat /run/secrets/mongodb_password)" \
+          --authenticationDatabase admin \
+          --eval "db.adminCommand('ping').ok" \
+          --quiet
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 45s
+    deploy:
+      mode: global
+      restart_policy:
+        condition: on-failure
+        delay: 10s
+        max_attempts: 3
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 1G
+    networks:
+      default:
+        aliases:
+          - mongodb-{{.Node.Hostname}}
+
+  #############################################
+  # REDIS
+  #############################################
+  redis:
+    image: redis:8-alpine
+    hostname: "redis-{{.Node.Hostname}}"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.hostname != vm-docker-bragi
+      restart_policy:
+        condition: on-failure
+        delay: 10s
+        max_attempts: 3
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
 
 secrets:
   postgresql_superuser_password:
@@ -186,4 +307,14 @@ secrets:
   pgpool_admin_password:
     external: true
   pgpool_aes_key:
+    external: true
+  minio_root_user:
+    external: true
+  minio_root_password:
+    external: true
+  mongodb_password:
+    external: true
+  mongodb_user:
+    external: true
+  mongodb_keyfile:
     external: true
