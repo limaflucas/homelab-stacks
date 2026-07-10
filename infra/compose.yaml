@@ -173,6 +173,7 @@ services:
       - pgpool_aes_key
     networks:
       - public
+      - pgpool
     deploy:
       mode: global
       resources:
@@ -431,6 +432,7 @@ services:
           memory: 512M
     networks:
       - public
+      - mouseion_private
 
   #############################################
   # REGISTRY
@@ -513,6 +515,13 @@ services:
 networks:
   public:
     driver: overlay
+  pgpool:
+    driver: overlay
+    name: pgpool_net
+    attachable: true
+  mouseion_private:
+    external: true
+    name: mouseion_private
 
 secrets:
   # Databases Secrets
