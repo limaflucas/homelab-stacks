@@ -520,8 +520,9 @@ networks:
     name: pgpool_net
     attachable: true
   mouseion_private:
-    external: true
+    driver: overlay
     name: mouseion_private
+    attachable: true
 
 secrets:
   # Databases Secrets
