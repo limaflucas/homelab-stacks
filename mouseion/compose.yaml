@@ -1,0 +1,298 @@
+services:
+  #############################################
+  # GLUETUN VPN CLIENT
+  #############################################
+  gluetun:
+    image: ghcr.io/qdm12/gluetun:v3
+    cap_add:
+      - NET_ADMIN
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        # 1. Load Countries from Secret
+        if [ -f /run/secrets/vpn_countries ]; then
+          export SERVER_COUNTRIES=$$(cat /run/secrets/vpn_countries)
+        fi
+
+        # 2. Add curl package for emergencies
+        apk update
+        apk add curl
+        exec /gluetun-entrypoint
+    environment:
+      - TZ=America/Halifax
+      - VPN_SERVICE_PROVIDER=nordvpn
+      - VPN_TYPE=wireguard
+      - HTTPPROXY=on
+      - SOCKS5PROXY=on
+      - FIREWALL=on
+      - WIREGUARD_PRIVATE_KEY_SECRETFILE=/run/secrets/vpn_private_key
+      - WIREGUARD_IMPLEMENTATION=userspace
+      - UPDATER_PERIOD=36h
+    networks:
+      - mouseion_private
+    volumes:
+      - /mnt/docker-data/services/gluetun:/gluetun
+    deploy:
+      mode: replicated
+      replicas: 1
+      restart_policy:
+        condition: any
+        delay: 10s
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 1G
+    secrets:
+      - vpn_countries
+      - vpn_private_key
+
+  #############################################
+  # GLUETUN SOCKS PROXY (GOST)
+  #############################################
+  gluetun-socks:
+    image: gogost/gost:latest
+    command: ["-L", "socks5://:1080", "-F", "http://gluetun:8888"]
+    networks:
+      - mouseion_private
+    environment:
+      - TZ=America/Halifax
+    deploy:
+      mode: replicated
+      replicas: 1
+      restart_policy:
+        condition: any
+        delay: 10s
+      resources:
+        limits:
+          cpus: '0.2'
+          memory: 128M
+
+  #############################################
+  # PROWLARR
+  #############################################
+  prowlarr:
+    image: lscr.io/linuxserver/prowlarr:latest
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=America/Halifax
+    volumes:
+      - /mnt/docker-data/services/prowlarr/config:/config
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints:
+          - node.hostname != vm-docker-bragi
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+      restart_policy:
+        condition: on-failure
+        delay: 10s
+        max_attempts: 5
+        window: 120s
+    networks:
+      - mouseion_private
+
+  #############################################
+  # RADARR
+  #############################################
+  radarr:
+    image: lscr.io/linuxserver/radarr:latest
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=America/Halifax
+      - FILE__RADARR__POSTGRES__PASSWORD=/run/secrets/radarr_database_password
+      - RADARR__POSTGRES__HOST=pgpool
+      - RADARR__POSTGRES__USER=radarr
+      - RADARR__POSTGRES__MAINDB=radarr
+      - RADARR__POSTGRES__LOGDB=radarr_logs
+    volumes:
+      - /mnt/docker-data/services/radarr/config:/config
+      - /mnt/pirateflix/media/movies:/movies
+      - /mnt/pirateflix/downloads/complete:/config/Downloads/complete
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints:
+          - node.hostname != vm-docker-bragi
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
+      restart_policy:
+        condition: on-failure
+        delay: 10s
+        max_attempts: 5
+        window: 120s
+    networks:
+      - mouseion_private
+      - pgpool
+    secrets:
+      - radarr_database_password
+
+  #############################################
+  # SABNZBD
+  #############################################
+  sabnzbd:
+    image: lscr.io/linuxserver/sabnzbd:latest
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        echo "Waiting for Gluetun to register on the overlay network..."
+        until getent hosts gluetun > /dev/null 2>&1; do
+          sleep 3
+        done
+
+        # 1. Extract Gluetun's active Swarm Virtual IP (VIP)
+        GLUETUN_IP=$$(getent hosts gluetun | awk '{print $$1}' | head -n 1)
+        echo "Discovered dynamic Gluetun IP: $$GLUETUN_IP"
+
+        # 2. Inject it as the primary nameserver inside SABnzbd
+        echo "nameserver $$GLUETUN_IP" > /etc/resolv.conf
+
+        # 3. Hand control back to LinuxServer.io's native S6 base initialization system
+        exec /init
+    environment:
+      - TZ=America/Halifax
+      - PUID=1000
+      - PGID=1000
+    volumes:
+      - /mnt/docker-data/services/sabnzbd/config:/config
+      - /mnt/pirateflix/downloads/incomplete:/config/Downloads/incomplete
+      - /mnt/pirateflix/downloads/complete:/config/Downloads/complete
+    networks:
+      - mouseion_private
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints:
+          - node.hostname != vm-docker-bragi
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+      restart_policy:
+        condition: on-failure
+        delay: 10s
+        max_attempts: 5
+        window: 120s
+
+  #############################################
+  # SEERR (OVERSEERR)
+  #############################################
+  seerr:
+    image: ghcr.io/seerr-team/seerr:latest
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        if [ -f /run/secrets/seerr_db_password ]; then
+          export DB_PASS=$$(cat /run/secrets/seerr_db_password)
+        fi
+        exec npm start
+    environment:
+      - TZ=America/Halifax
+      - PUID=1000
+      - PGID=1000
+      - LOG_LEVEL=INFO
+      - DB_TYPE=postgres
+      - DB_HOST=pgpool
+      - DB_PORT=5432
+      - DB_USER=seerr
+      - DB_NAME=seerr
+    volumes:
+      - /mnt/docker-data/services/seerr/config:/app/config
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:5055/api/v1/status"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints:
+          - node.hostname != vm-docker-bragi
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
+      restart_policy:
+        condition: on-failure
+        delay: 10s
+        max_attempts: 5
+        window: 120s
+    secrets:
+      - seerr_db_password
+    networks:
+      - mouseion_private
+      - pgpool
+
+  #############################################
+  # SONARR
+  #############################################
+  sonarr:
+    image: lscr.io/linuxserver/sonarr:latest
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=America/Halifax
+      - FILE__SONARR__POSTGRES__PASSWORD=/run/secrets/sonarr_database_password
+      - SONARR__POSTGRES__HOST=pgpool
+      - SONARR__POSTGRES__USER=sonarr
+      - SONARR__POSTGRES__MAINDB=sonarr
+      - SONARR__POSTGRES__LOGDB=sonarr_logs
+    volumes:
+      - /mnt/docker-data/services/sonarr/config:/config
+      - /mnt/pirateflix/media/tv:/tv
+      - /mnt/pirateflix/media/animes:/animes
+      - /mnt/pirateflix/downloads/complete:/config/Downloads/complete
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints:
+          - node.hostname != vm-docker-bragi
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
+      restart_policy:
+        condition: on-failure
+        delay: 10s
+        max_attempts: 5
+        window: 120s
+    networks:
+      - mouseion_private
+      - pgpool
+    secrets:
+      - sonarr_database_password
+
+networks:
+  mouseion_private:
+    external: true
+    name: mouseion_private
+  pgpool:
+    external: true
+    name: pgpool_net
+
+secrets:
+  vpn_countries:
+    external: true
+  vpn_private_key:
+    external: true
+  radarr_database_password:
+    external: true
+  seerr_db_password:
+    external: true
+  sonarr_database_password:
+    external: true
