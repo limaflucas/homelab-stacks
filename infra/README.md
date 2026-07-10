@@ -47,7 +47,7 @@ docker node update --label-add pg=1 <primary-node-hostname>
 ### 2. Host Directories
 Verify that the following persistence directories exist on the respective Docker host nodes:
 
-*   **Komodo Core:** `/mnt/docker-data/services/komodo/keys`, `/mnt/docker-data/services/komodo/backups`, `/mnt/docker-data/services/komodo/cas`, `/mnt/docker-data/services/komodo/repos`
+*   **Komodo Core:** `/mnt/docker-data/services/komodo/keys`, `/mnt/docker-data/services/komodo/backups`, `/mnt/docker-data/services/komodo/cas`
 *   **Komodo Periphery:** `/mnt/docker-data/services/periphery`
 *   **Step-CA:** `/mnt/docker-data/services/step-ca`
 *   **Nginx Proxy Manager:** `/mnt/docker-data/services/nginx-proxy-manager/data`, `/mnt/docker-data/services/nginx-proxy-manager/letsencrypt`
