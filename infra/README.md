@@ -20,7 +20,8 @@ It hosts core management, network security, authentication, and internal certifi
 *   **Authelia** (`authelia`): Single Sign-On (SSO) and authentication provider implementing OpenID Connect (OIDC) and 2FA. Connects to PostgreSQL (`pgpool`) for user session and state persistence.
 *   **Step-CA** (`step-ca`): Private Certificate Authority managing internal certificates and running an ACME directory for internal services TLS.
 
-### 4. Databases
+### 4. Databases & Storage
+*   **MinIO** (`minio`): High-performance S3-compatible object storage server.
 *   **PostgreSQL HA Cluster** (`pgsql-primary`, `pgsql-standby`, `pgpool`): A highly available PostgreSQL 17 cluster with native streaming replication (1 primary node, 2 standbys) and Pgpool-II for query load-balancing and connection routing.
     *   *Note:* `pgpool` is deployed in `global` mode (one instance per node) for high availability. Its settings are tuned (`PGPOOL_MAX_POOL=4`, `PGPOOL_NUM_INIT_CHILDREN=12`) to stay safely within PostgreSQL's `max_connections=200` limit.
 *   **MongoDB Replica Set** (`mongodb`): A global MongoDB 8 replica set cluster used by Komodo Core.
@@ -59,6 +60,7 @@ Verify that the following persistence directories exist on the respective Docker
     *   *Note:* Copy [01-users-dbs.sh](file:///Users/lflima/Vault/homelab/infra/postgresql/01-users-dbs.sh) and [pg_hba_homelab.conf](file:///Users/lflima/Vault/homelab/infra/postgresql/pg_hba_homelab.conf) to the init path.
 *   **Pgpool:** `/mnt/docker-data/services/pgpool/pool_passwd`
 *   **MongoDB:** `/opt/docker-data/databases/mongodb/data`, `/opt/docker-data/databases/mongodb/config`
+*   **MinIO:** `/mnt/docker-data/services/minio/data`
 
 ---
 
@@ -101,6 +103,10 @@ openssl rand -base64 32 | docker secret create authelia_session_secret -
 openssl rand -base64 32 | docker secret create authelia_storage_encryption_key -
 echo "authelia_pg_password" | docker secret create authelia_db_password -
 openssl rand -base64 32 | docker secret create authelia_oidc_hmac_secret -
+
+# MinIO Secrets
+echo "your_minio_root_user" | docker secret create minio_root_user -
+echo "your_minio_root_password" | docker secret create minio_root_password -
 ```
 
 ---
