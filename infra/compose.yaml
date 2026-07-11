@@ -433,6 +433,7 @@ services:
     networks:
       - public
       - mouseion_private
+      - vaultwarden_private
 
   #############################################
   # REGISTRY
@@ -522,6 +523,10 @@ networks:
   mouseion_private:
     driver: overlay
     name: mouseion_private
+    attachable: true
+  vaultwarden_private:
+    driver: overlay
+    name: vaultwarden_private
     attachable: true
 
 secrets:
