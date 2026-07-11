@@ -1,0 +1,44 @@
+services:
+  #############################################
+  # VAULTWARDEN
+  #############################################
+  vaultwarden:
+    image: vaultwarden/server:latest
+    environment:
+      - TZ=America/Halifax
+    secrets:
+      - vaultwarden_db_password
+      - vaultwarden_db_user
+    entrypoint: >
+      /bin/sh -c "export DATABASE_URL=postgresql://$$(cat /run/secrets/vaultwarden_db_user):$$(cat /run/secrets/vaultwarden_db_password)@pgpool:5432/vaultwarden && /vaultwarden"
+    volumes:
+      - /mnt/docker-data/services/vaultwarden:/data
+    deploy:
+      mode: replicated
+      replicas: 1
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+      restart_policy:
+        condition: on-failure
+        delay: 10s
+        max_attempts: 5
+        window: 120s
+    networks:
+      - vaultwarden_private
+      - pgpool
+
+networks:
+  vaultwarden_private:
+    external: true
+    name: vaultwarden_private
+  pgpool:
+    external: true
+    name: pgpool_net
+
+secrets:
+  vaultwarden_db_password:
+    external: true
+  vaultwarden_db_user:
+    external: true
