@@ -435,6 +435,7 @@ services:
       - public
       - mouseion_private
       - vaultwarden_private
+      - appflowy_private
 
   #############################################
   # REGISTRY
@@ -528,6 +529,10 @@ networks:
   vaultwarden_private:
     driver: overlay
     name: vaultwarden_private
+    attachable: true
+  appflowy_private:
+    driver: overlay
+    name: appflowy_private
     attachable: true
 
 secrets:
