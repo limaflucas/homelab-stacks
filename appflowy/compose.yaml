@@ -75,7 +75,7 @@ services:
       - APPFLOWY_ENVIRONMENT=production
       - APPFLOWY_DATABASE_URL=${APPFLOWY_DATABASE_URL}
       - APPFLOWY_GOTRUE_JWT_SECRET=${GOTRUE_JWT_SECRET}
-      - APPFLOWY_GOTRUE_BASE_URL=https://gotrue.appflowy.homelab
+      - APPFLOWY_GOTRUE_BASE_URL=http://gotrue:9999
       - APPFLOWY_REDIS_URI=redis://appflowy-redis:6379
       - APPFLOWY_S3_CREATE_BUCKET=true
       - APPFLOWY_S3_USE_MINIO=true
