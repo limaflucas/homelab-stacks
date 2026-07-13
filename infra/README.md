@@ -23,15 +23,16 @@ It hosts core management, network security, authentication, and internal certifi
 ### 4. Databases & Storage
 *   **MinIO** (`minio`): High-performance S3-compatible object storage server.
 *   **PostgreSQL HA Cluster** (`pgsql-primary`, `pgsql-standby`, `pgpool`): A highly available PostgreSQL 17 cluster with native streaming replication (1 primary node, 2 standbys) and Pgpool-II for query load-balancing and connection routing.
-    *   *Note:* `pgpool` is deployed in `global` mode (one instance per node) for high availability. Its settings are tuned (`PGPOOL_MAX_POOL=4`, `PGPOOL_NUM_INIT_CHILDREN=12`) to stay safely within PostgreSQL's `max_connections=200` limit.
+    *   *Note:* `pgpool` is deployed in `replicated` mode (1 replica) with constraints. Its settings are tuned (`PGPOOL_MAX_POOL=4`, `PGPOOL_NUM_INIT_CHILDREN=35`) to stay safely within PostgreSQL's `max_connections=300` limit.
 *   **MongoDB Replica Set** (`mongodb`): A global MongoDB 8 replica set cluster used by Komodo Core.
 
 ---
 
 ## Network Architecture
 
-The stack defines a single overlay network:
+The stack defines the following overlay networks:
 1.  `public` (Swarm: `infra_public`): An overlay network that connects all infrastructure services, including proxy routing, authentication, and databases. Any external services or stacks wishing to communicate with these services (such as databases or reverse proxy endpoints) must join the `infra_public` overlay network.
+2.  `minio` (Swarm: `minio_net`): An overlay network dedicated to secure, isolated communication between MinIO storage and client applications (such as AppFlowy Cloud).
 
 ---
 
@@ -48,8 +49,8 @@ docker node update --label-add pg=1 <primary-node-hostname>
 ### 2. Host Directories
 Verify that the following persistence directories exist on the respective Docker host nodes:
 
-*   **Komodo Core:** `/mnt/docker-data/services/komodo/keys`, `/mnt/docker-data/services/komodo/backups`, `/mnt/docker-data/services/komodo/cas`, `/mnt/docker-data/services/komodo/repos`
-*   **Komodo Periphery:** `/mnt/docker-data/services/periphery`
+*   **Komodo Core:** `/mnt/docker-data/services/komodo/keys`, `/mnt/docker-data/services/komodo/backups`, `/mnt/docker-data/services/komodo/repos`
+*   **Komodo Periphery:** `/mnt/docker-data/services/periphery/<node-hostname>/keys`
 *   **Step-CA:** `/mnt/docker-data/services/step-ca`
 *   **Nginx Proxy Manager:** `/mnt/docker-data/services/nginx-proxy-manager/data`, `/mnt/docker-data/services/nginx-proxy-manager/letsencrypt`
     *   *Note:* Ensure the custom init script [99-trust-ca.sh](file:///Users/lflima/Vault/homelab/infra/nginx-proxy-manager/custom-init/99-trust-ca.sh) is copied to `/mnt/docker-data/services/nginx-proxy-manager/custom-init/99-trust-ca.sh` on the host.
@@ -84,6 +85,10 @@ echo "mongodb://komodo:your_komodo_password@mongodb-node1:27017,mongodb-node2:27
 openssl rand -base64 32 | tr -d '\n' | docker secret create komodo_jwt_secret -
 openssl rand -base64 32 | tr -d '\n' | docker secret create komodo_webhook_secret -
 echo "your_komodo_oidc_client_secret" | docker secret create komodo_oidc_client_secret -
+# Komodo Periphery onboarding key (create one secret for each node)
+echo "your_secure_onboarding_key" | docker secret create onboarding_vm-docker-adam -
+echo "your_secure_onboarding_key" | docker secret create onboarding_vm-docker-zeus -
+echo "your_secure_onboarding_key" | docker secret create onboarding_vm-docker-bragi -
 
 # Step CA Secrets
 echo "your_ca_password" | docker secret create step_ca_password -

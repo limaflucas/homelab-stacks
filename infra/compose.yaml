@@ -11,6 +11,9 @@ services:
       MINIO_ROOT_PASSWORD_FILE: /run/secrets/minio_root_password
     volumes:
       - /mnt/docker-data/services/minio/data:/data
+    networks:
+      - public
+      - minio
     secrets:
       - minio_root_user
       - minio_root_password
@@ -29,7 +32,7 @@ services:
         limits:
           cpus: '0.5'
           memory: 512M
-          
+
   #############################################
   # POSTGRESQL PRIMARY
   #############################################
@@ -60,7 +63,7 @@ services:
           -c synchronous_commit=on \
           -c archive_mode=off \
           -c listen_addresses='*' \
-          -c max_connections=200 \
+          -c max_connections=300 \
           -c shared_buffers=256MB \
           -c work_mem=16MB \
           -c maintenance_work_mem=64MB \
@@ -127,7 +130,7 @@ services:
         exec docker-entrypoint.sh postgres \
           -c hot_standby=on \
           -c listen_addresses='*' \
-          -c max_connections=200 \
+          -c max_connections=300 \
           -c shared_buffers=256MB \
           -c work_mem=16MB \
           -c maintenance_work_mem=64MB \
@@ -172,10 +175,10 @@ services:
       - PGPOOL_BACKEND_NODES=0:postgresql-vm-docker-adam:5432,1:postgresql-vm-docker-zeus:5432,2:postgresql-vm-docker-bragi:5432
       - PGPOOL_BACKEND_APPLICATION_NAMES=postgresql-vm-docker-adam,postgresql-vm-docker-zeus,postgresql-vm-docker-bragi
       - PGPOOL_ENABLE_LOAD_BALANCING=yes
-      - PGPOOL_ENABLE_STATEMENT_LOAD_BALANCING=yes
+      - PGPOOL_ENABLE_STATEMENT_LOAD_BALANCING=no
       - PGPOOL_DISABLE_LOAD_BALANCE_ON_WRITE=transaction
       - PGPOOL_MAX_POOL=4
-      - PGPOOL_NUM_INIT_CHILDREN=12
+      - PGPOOL_NUM_INIT_CHILDREN=35
       # Streaming replication check
       - PGPOOL_SR_CHECK_USER=pgpool
       - PGPOOL_SR_CHECK_PASSWORD_FILE=/run/secrets/pgpool_admin_password
@@ -206,7 +209,11 @@ services:
       - public
       - pgpool
     deploy:
-      mode: global
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints:
+          - node.hostname != vm-docker-bragi
       resources:
         limits:
           cpus: '0.5'
@@ -307,7 +314,7 @@ services:
     volumes:
       - /mnt/docker-data/services/komodo/keys:/config/keys
       - /mnt/docker-data/services/komodo/backups:/backups
-      - /mnt/docker-data/services/komodo/cas:/usr/local/share/ca-certificates
+      - /mnt/docker-data/services/step-ca/certs/root_ca.crt:/usr/local/share/ca-certificates/homelab-root-ca.crt:ro
       - /mnt/docker-data/services/komodo/repos:/repo-cache
     healthcheck:
       test: [ "CMD", "curl", "-f", "http://localhost:9120/" ]
@@ -345,8 +352,9 @@ services:
       # Templating IS supported in environment variables
       PERIPHERY_CONNECT_AS: "{{.Node.Hostname}}"
       PERIPHERY_CORE_PUBLIC_KEYS: "file:/config/keys/core.pub"
+      PERIPHERY_ONBOARDING_KEY_FILE: /run/secrets/onboarding_{{.Node.Hostname}} 
     volumes:
-      - /mnt/docker-data/services/periphery/keys:/config/keys
+      - /mnt/docker-data/services/periphery/{{.Node.Hostname}}/keys:/config/keys
       # System monitoring mounts
       - /var/run/docker.sock:/var/run/docker.sock
       - /proc:/proc:ro
@@ -364,6 +372,10 @@ services:
           memory: 128M
     networks:
       - public
+    secrets:
+      - onboarding_vm-docker-adam
+      - onboarding_vm-docker-zeus
+      - onboarding_vm-docker-bragi
 
   #############################################
   # STEP-CA
@@ -463,10 +475,12 @@ services:
           cpus: '0.5'
           memory: 512M
     networks:
-      - public
-      - mouseion_private
-      - vaultwarden_private
-      - appflowy_private
+      public:
+        aliases:
+          - npm.homelab
+      mouseion_private:
+      vaultwarden_private:
+      appflowy_private:
 
   #############################################
   # REGISTRY
@@ -553,6 +567,10 @@ networks:
     driver: overlay
     name: pgpool_net
     attachable: true
+  minio:
+    driver: overlay
+    name: minio_net
+    attachable: true
   mouseion_private:
     driver: overlay
     name: mouseion_private
@@ -590,6 +608,13 @@ secrets:
   komodo_jwt_secret:
     external: true
   komodo_oidc_client_secret:
+    external: true
+  # Periphery
+  onboarding_vm-docker-adam:
+    external: true
+  onboarding_vm-docker-zeus:
+    external: true
+  onboarding_vm-docker-bragi:
     external: true
   # Step CA Secrets
   step_ca_password:
