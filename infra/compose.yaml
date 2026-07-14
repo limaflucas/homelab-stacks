@@ -230,6 +230,8 @@ services:
       - PGBOUNCER_DATABASE=*
       - POSTGRESQL_HOST=pgpool
       - POSTGRESQL_PORT=5432
+      - POSTGRESQL_USER=postgres
+      - POSTGRESQL_PASSWORD=dummy
       - PGBOUNCER_AUTH_TYPE=any
       - PGBOUNCER_POOL_MODE=transaction
       - PGBOUNCER_MAX_CLIENT_CONN=200
