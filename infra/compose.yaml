@@ -130,7 +130,7 @@ services:
         exec docker-entrypoint.sh postgres \
           -c hot_standby=on \
           -c listen_addresses='*' \
-          -c max_connections=150 \
+          -c max_connections=300 \
           -c shared_buffers=256MB \
           -c work_mem=16MB \
           -c maintenance_work_mem=64MB \
