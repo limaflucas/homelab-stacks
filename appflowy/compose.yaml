@@ -74,6 +74,7 @@ services:
       - RUST_LOG=info
       - APPFLOWY_ENVIRONMENT=production
       - APPFLOWY_DATABASE_URL=${APPFLOWY_DATABASE_URL}
+      - APPFLOWY_DATABASE_MAX_CONNECTIONS=20
       - APPFLOWY_GOTRUE_JWT_SECRET=${GOTRUE_JWT_SECRET}
       - APPFLOWY_GOTRUE_BASE_URL=http://gotrue:9999
       - APPFLOWY_REDIS_URI=redis://appflowy-redis:6379
@@ -93,6 +94,7 @@ services:
       - AI_ENABLED=false
       - SIGNUP_WHITELIST_ENABLED=true
       - GUEST_INVITES_REQUIRE_ADMIN_APPROVAL=false
+      - APPFLOWY_WEBSOCKET_MAILBOX_SIZE=3000
     healthcheck:
       test: "curl --fail http://127.0.0.1:8000/api/health || exit 1"
       interval: 5s

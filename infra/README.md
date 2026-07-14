@@ -23,7 +23,7 @@ It hosts core management, network security, authentication, and internal certifi
 ### 4. Databases & Storage
 *   **MinIO** (`minio`): High-performance S3-compatible object storage server.
 *   **PostgreSQL HA Cluster** (`pgsql-primary`, `pgsql-standby`, `pgpool`): A highly available PostgreSQL 17 cluster with native streaming replication (1 primary node, 2 standbys) and Pgpool-II for query load-balancing and connection routing.
-    *   *Note:* `pgpool` is deployed in `replicated` mode (1 replica) with constraints. Its settings are tuned (`PGPOOL_MAX_POOL=4`, `PGPOOL_NUM_INIT_CHILDREN=35`) to stay safely within PostgreSQL's `max_connections=300` limit.
+    *   *Note:* `pgpool` is deployed in `replicated` mode (1 replica) with constraints. Its settings are tuned (`PGPOOL_MAX_POOL=5`, `PGPOOL_NUM_INIT_CHILDREN=30`) to stay safely within PostgreSQL's `max_connections=300` limit.
 *   **MongoDB Replica Set** (`mongodb`): A global MongoDB 8 replica set cluster used by Komodo Core.
 
 ---
