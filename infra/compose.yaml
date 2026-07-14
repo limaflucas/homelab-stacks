@@ -166,8 +166,16 @@ services:
     command:
       - |
         export PGPOOL_AES_KEY=$$(cat /run/secrets/pgpool_aes_key)
-        exec /opt/bitnami/scripts/pgpool/entrypoint.sh \
-            /opt/bitnami/scripts/pgpool/run.sh
+        # 1. Run setup script directly to initialize configuration (including pool_hba.conf)
+        /opt/bitnami/scripts/pgpool/setup.sh
+
+        # 2. Prepend a trust rule for pgbouncer/overlay networks to pool_hba.conf
+        echo "host    all             all             10.0.0.0/8              trust" > /tmp/pool_hba.conf.tmp
+        cat /opt/bitnami/pgpool/conf/pool_hba.conf >> /tmp/pool_hba.conf.tmp
+        mv /tmp/pool_hba.conf.tmp /opt/bitnami/pgpool/conf/pool_hba.conf
+
+        # 3. Run Pgpool
+        exec /opt/bitnami/scripts/pgpool/run.sh
     volumes:
       - /mnt/docker-data/services/pgpool/pool_passwd:/opt/bitnami/pgpool/conf/pool_passwd
     environment:
