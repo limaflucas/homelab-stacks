@@ -10,7 +10,7 @@ services:
       - vaultwarden_db_password
       - vaultwarden_db_user
     entrypoint: >
-      /bin/sh -c "export DATABASE_URL=postgresql://$$(cat /run/secrets/vaultwarden_db_user):$$(cat /run/secrets/vaultwarden_db_password)@pgpool:5432/vaultwarden && /vaultwarden"
+      /bin/sh -c "export DATABASE_URL=postgresql://$$(cat /run/secrets/vaultwarden_db_user):$$(cat /run/secrets/vaultwarden_db_password)@pgbouncer:5432/vaultwarden && /vaultwarden"
     volumes:
       - /mnt/docker-data/services/vaultwarden:/data
     deploy:

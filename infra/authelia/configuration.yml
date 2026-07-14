@@ -38,7 +38,7 @@ session:
 
 storage:
   postgres:
-    address: 'tcp://pgpool:5432'
+    address: 'tcp://pgbouncer:5432'
     database: authelia
     username: authelia
 
