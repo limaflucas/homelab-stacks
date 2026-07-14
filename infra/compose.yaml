@@ -236,17 +236,6 @@ services:
 
   pgbouncer:
     image: docker.io/bitnamilegacy/pgbouncer:1.24.1
-    entrypoint: [ "/bin/bash", "-c" ]
-    command:
-      - |
-        # 1. Run setup script to generate configuration
-        /opt/bitnami/scripts/pgbouncer/setup.sh
-
-        # 2. Append max_prepared_statements setting to pgbouncer.ini
-        echo "max_prepared_statements = 100" >> /opt/bitnami/pgbouncer/conf/pgbouncer.ini
-
-        # 3. Run PgBouncer
-        exec /opt/bitnami/scripts/pgbouncer/run.sh
     environment:
       - TZ=America/Halifax
       - PGBOUNCER_DATABASE=*
@@ -258,7 +247,7 @@ services:
       - PGBOUNCER_IGNORE_STARTUP_PARAMETERS=extra_float_digits,search_path
       - PGBOUNCER_AUTH_USER=postgres
       - PGBOUNCER_AUTH_QUERY=SELECT usename, passwd FROM pg_shadow WHERE usename=$$1
-      - PGBOUNCER_POOL_MODE=transaction
+      - PGBOUNCER_POOL_MODE=session
       - PGBOUNCER_MAX_CLIENT_CONN=200
       - PGBOUNCER_DEFAULT_POOL_SIZE=3
       - PGBOUNCER_MIN_POOL_SIZE=0
