@@ -215,7 +215,6 @@ services:
       - pgpool_aes_key
     networks:
       - public
-      - pgpool
     deploy:
       mode: replicated
       replicas: 1
