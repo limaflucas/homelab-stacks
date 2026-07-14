@@ -45,7 +45,17 @@ Ensure the following persistence and certificate paths are mounted on your Swarm
 
 ---
 
-### 3. Environment Variables
+### 3. Database Search Path (For GoTrue Auth)
+Because PgBouncer operates in **transaction pooling** mode, session-level startup parameters like `search_path` are discarded to allow safe connection multiplexing. 
+
+To ensure GoTrue can locate the `auth` schema tables without sending the `options` parameter, you must configure the default search path on the database server for the role:
+```sql
+ALTER ROLE appflowy IN DATABASE appflowy SET search_path TO auth, public;
+```
+
+---
+
+### 4. Environment Variables
 The stack uses environment variables to configure database connections, S3 storage keys, and authentication parameters. These are usually injected via Komodo Core:
 
 | Environment Variable | Description | Recommended Value |
@@ -54,7 +64,7 @@ The stack uses environment variables to configure database connections, S3 stora
 | `GOTRUE_ADMIN_PASSWORD` | Secure admin login password | `<your_secure_password>` |
 | `GOTRUE_JWT_SECRET` | Secret key used to sign JWTs | `<random_base64_string>` |
 | `GOTRUE_JWT_EXP` | Expiration time of JWTs in seconds | `604800` (7 days) |
-| `GOTRUE_DATABASE_URL` | GoTrue DB connection string (targeting auth schema) | `postgres://appflowy:<password>@pgbouncer:6432/appflowy?options=-csearch_path=auth,public` |
+| `GOTRUE_DATABASE_URL` | GoTrue DB connection string (targeting auth schema) | `postgres://appflowy:<password>@pgbouncer:6432/appflowy` |
 | `APPFLOWY_DATABASE_URL` | AppFlowy Cloud DB connection string | `postgres://appflowy:<password>@pgbouncer:6432/appflowy` |
 | `APPFLOWY_S3_ACCESS_KEY` | MinIO Access Key (root user) | `<minio_access_key>` |
 | `APPFLOWY_S3_SECRET_KEY` | MinIO Secret Key (root password) | `<minio_secret_key>` |
