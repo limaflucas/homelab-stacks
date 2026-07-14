@@ -236,6 +236,17 @@ services:
 
   pgbouncer:
     image: docker.io/bitnamilegacy/pgbouncer:1.24.1
+    entrypoint: [ "/bin/bash", "-c" ]
+    command:
+      - |
+        # 1. Run setup script to generate configuration
+        /opt/bitnami/scripts/pgbouncer/setup.sh
+
+        # 2. Append max_prepared_statements setting to pgbouncer.ini
+        echo "max_prepared_statements = 100" >> /opt/bitnami/pgbouncer/conf/pgbouncer.ini
+
+        # 3. Run PgBouncer
+        exec /opt/bitnami/scripts/pgbouncer/run.sh
     environment:
       - TZ=America/Halifax
       - PGBOUNCER_DATABASE=*
