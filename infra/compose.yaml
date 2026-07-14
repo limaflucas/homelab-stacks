@@ -224,7 +224,7 @@ services:
         window: 120s
 
   pgbouncer:
-    image: docker.io/bitnami/pgbouncer:latest
+    image: docker.io/bitnamilegacy/pgbouncer:1.24.1
     environment:
       - TZ=America/Halifax
       - PGBOUNCER_DATABASE=*
