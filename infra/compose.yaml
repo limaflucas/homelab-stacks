@@ -233,11 +233,13 @@ services:
       - POSTGRESQL_USER=postgres
       - POSTGRESQL_PASSWORD=dummy
       - PGBOUNCER_AUTH_TYPE=any
+      - PGBOUNCER_LISTEN_PORT=5432
       - PGBOUNCER_POOL_MODE=transaction
       - PGBOUNCER_MAX_CLIENT_CONN=200
       - PGBOUNCER_DEFAULT_POOL_SIZE=3
       - PGBOUNCER_MIN_POOL_SIZE=0
     networks:
+      - public
       - pgpool
     deploy:
       mode: replicated
