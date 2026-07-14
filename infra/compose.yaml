@@ -241,6 +241,7 @@ services:
       - POSTGRESQL_USER=postgres
       - POSTGRESQL_PASSWORD_FILE=/run/secrets/postgresql_superuser_password
       - PGBOUNCER_AUTH_TYPE=scram-sha-256
+      - PGBOUNCER_IGNORE_STARTUP_PARAMETERS=extra_float_digits,search_path
       - PGBOUNCER_AUTH_USER=postgres
       - PGBOUNCER_AUTH_QUERY=SELECT usename, passwd FROM pg_shadow WHERE usename=$$1
       - PGBOUNCER_POOL_MODE=transaction
