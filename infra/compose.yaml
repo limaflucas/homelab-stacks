@@ -231,12 +231,16 @@ services:
       - POSTGRESQL_HOST=pgpool
       - POSTGRESQL_PORT=5432
       - POSTGRESQL_USER=postgres
-      - POSTGRESQL_PASSWORD=dummy
-      - PGBOUNCER_AUTH_TYPE=any
+      - POSTGRESQL_PASSWORD_FILE=/run/secrets/postgresql_superuser_password
+      - PGBOUNCER_AUTH_TYPE=scram-sha-256
+      - PGBOUNCER_AUTH_USER=postgres
+      - PGBOUNCER_AUTH_QUERY=SELECT usename, passwd FROM pg_shadow WHERE usename=$$1
       - PGBOUNCER_POOL_MODE=transaction
       - PGBOUNCER_MAX_CLIENT_CONN=200
       - PGBOUNCER_DEFAULT_POOL_SIZE=3
       - PGBOUNCER_MIN_POOL_SIZE=0
+    secrets:
+      - postgresql_superuser_password
     networks:
       - public
       - pgpool
