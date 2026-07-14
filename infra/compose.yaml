@@ -174,7 +174,11 @@ services:
         cat /opt/bitnami/pgpool/conf/pool_hba.conf >> /tmp/pool_hba.conf.tmp
         mv /tmp/pool_hba.conf.tmp /opt/bitnami/pgpool/conf/pool_hba.conf
 
-        # 3. Run Pgpool
+        # 3. Disable failover on clean container shutdown, and clear any stale status file
+        echo "failover_on_backend_shutdown = off" >> /opt/bitnami/pgpool/conf/pgpool.conf
+        rm -f /opt/bitnami/pgpool/logs/pgpool_status
+
+        # 4. Run Pgpool
         exec /opt/bitnami/scripts/pgpool/run.sh
     volumes:
       - /mnt/docker-data/services/pgpool/pool_passwd:/opt/bitnami/pgpool/conf/pool_passwd
@@ -190,15 +194,15 @@ services:
       # Streaming replication check
       - PGPOOL_SR_CHECK_USER=pgpool
       - PGPOOL_SR_CHECK_PASSWORD_FILE=/run/secrets/pgpool_admin_password
-      - PGPOOL_SR_CHECK_PERIOD=10
+      - PGPOOL_SR_CHECK_PERIOD=15
       - PGPOOL_SR_CHECK_DATABASE=postgres
       # Health check
       - PGPOOL_HEALTH_CHECK_USER=pgpool
       - PGPOOL_HEALTH_CHECK_PASSWORD_FILE=/run/secrets/pgpool_admin_password
-      - PGPOOL_HEALTH_CHECK_PERIOD=10
-      - PGPOOL_HEALTH_CHECK_TIMEOUT=5
-      - PGPOOL_HEALTH_CHECK_MAX_RETRIES=3
-      - PGPOOL_HEALTH_CHECK_RETRY_DELAY=3
+      - PGPOOL_HEALTH_CHECK_PERIOD=15
+      - PGPOOL_HEALTH_CHECK_TIMEOUT=10
+      - PGPOOL_HEALTH_CHECK_MAX_RETRIES=5
+      - PGPOOL_HEALTH_CHECK_RETRY_DELAY=5
       # Failover
       - PGPOOL_AUTO_FAILBACK=yes
       # Admin
