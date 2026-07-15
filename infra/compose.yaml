@@ -187,7 +187,7 @@ services:
       - PGPOOL_BACKEND_NODES=0:postgresql-vm-docker-adam:5432,1:postgresql-vm-docker-zeus:5432,2:postgresql-vm-docker-bragi:5432
       - PGPOOL_BACKEND_APPLICATION_NAMES=postgresql-vm-docker-adam,postgresql-vm-docker-zeus,postgresql-vm-docker-bragi
       - PGPOOL_ENABLE_LOAD_BALANCING=yes
-      - PGPOOL_ENABLE_STATEMENT_LOAD_BALANCING=yes
+      - PGPOOL_ENABLE_STATEMENT_LOAD_BALANCING=no
       - PGPOOL_DISABLE_LOAD_BALANCE_ON_WRITE=transaction
       - PGPOOL_MAX_POOL=5
       - PGPOOL_NUM_INIT_CHILDREN=30
@@ -249,8 +249,8 @@ services:
       - PGBOUNCER_AUTH_QUERY=SELECT usename, passwd FROM pg_shadow WHERE usename=$$1
       - PGBOUNCER_POOL_MODE=session
       - PGBOUNCER_MAX_CLIENT_CONN=200
-      - PGBOUNCER_DEFAULT_POOL_SIZE=3
-      - PGBOUNCER_MIN_POOL_SIZE=0
+      - PGBOUNCER_DEFAULT_POOL_SIZE=5
+      - PGBOUNCER_MIN_POOL_SIZE=2
     secrets:
       - postgresql_superuser_password
     networks:

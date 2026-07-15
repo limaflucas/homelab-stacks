@@ -46,7 +46,7 @@ Ensure the following persistence and certificate paths are mounted on your Swarm
 ---
 
 ### 3. Database Search Path & Roles (For GoTrue and AppFlowy Cloud)
-Because PgBouncer operates in **transaction pooling** mode, session-level startup parameters like `search_path` are discarded to allow safe connection multiplexing. 
+Because PgBouncer operates in connection pooling modes, session-level startup parameters like `search_path` are managed at the role level.
 
 To prevent table name collisions between GoTrue (which creates tables in the `auth` schema) and AppFlowy Cloud (which creates tables in the `public` schema), you must use **separate database users** and configure their search paths accordingly:
 
@@ -59,6 +59,30 @@ GRANT ALL ON SCHEMA public TO gotrue;
 -- 2. Configure search paths
 ALTER ROLE gotrue IN DATABASE appflowy SET search_path TO auth, public;
 ALTER ROLE appflowy IN DATABASE appflowy SET search_path TO "$user", public;
+```
+
+---
+
+### 3.1. Database Pre-initialization & Extensions
+AppFlowy Cloud and GoTrue rely on specific PostgreSQL extensions (`vector` for AI embeddings, `uuid-ossp` for UUID generation, and `pgcrypto` for GoTrue's password hashing/encryption). 
+
+Because the application users do not have superuser privileges to create extensions on-the-fly during migrations, these extensions and schemas must be **pre-initialized** by the database superuser (`postgres`) on the primary database container (`feee2dc85842`):
+
+```sql
+-- 1. Connect to the fresh database and enable required extensions
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+CREATE EXTENSION IF NOT EXISTS "pgcrypto";
+CREATE EXTENSION IF NOT EXISTS "vector";
+
+-- 2. Pre-create the auth schema owned by gotrue to avoid race conditions
+CREATE SCHEMA IF NOT EXISTS auth;
+ALTER SCHEMA auth OWNER TO gotrue;
+
+-- 3. Grant permissions to the appflowy user
+GRANT ALL PRIVILEGES ON DATABASE appflowy TO appflowy;
+GRANT ALL ON SCHEMA public TO appflowy;
+GRANT USAGE, SELECT, REFERENCES ON ALL TABLES IN SCHEMA auth TO appflowy;
+ALTER DEFAULT PRIVILEGES IN SCHEMA auth GRANT SELECT, REFERENCES ON TABLES TO appflowy;
 ```
 
 ---

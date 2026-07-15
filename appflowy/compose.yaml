@@ -32,7 +32,7 @@ services:
       - GOTRUE_JWT_EXP=${GOTRUE_JWT_EXP}
       - DATABASE_URL=${GOTRUE_DATABASE_URL}
       - GOTRUE_DISABLE_SIGNUP=false
-      - GOTRUE_MAILER_AUTOCONFIRM=true
+      - GOTRUE_MAILER_AUTOCONFIRM=false
       - GOTRUE_SITE_URL=appflowy-flutter://
       - GOTRUE_URI_ALLOW_LIST=**     
       - GOTRUE_JWT_ADMIN_GROUP_NAME=supabase_admin
@@ -51,9 +51,6 @@ services:
     deploy:
       mode: replicated
       replicas: 1
-      placement:
-        constraints:
-          - node.hostname != vm-docker-bragi
       restart_policy:
         condition: on-failure
         delay: 5s
@@ -74,7 +71,7 @@ services:
       - RUST_LOG=info
       - APPFLOWY_ENVIRONMENT=production
       - APPFLOWY_DATABASE_URL=${APPFLOWY_DATABASE_URL}
-      - APPFLOWY_DATABASE_MAX_CONNECTIONS=20
+      - APPFLOWY_DATABASE_MAX_CONNECTIONS=40
       - APPFLOWY_GOTRUE_JWT_SECRET=${GOTRUE_JWT_SECRET}
       - APPFLOWY_GOTRUE_BASE_URL=http://gotrue:9999
       - APPFLOWY_REDIS_URI=redis://appflowy-redis:6379
@@ -93,7 +90,7 @@ services:
       - APPFLOWY_SEARCH_REQUEST_TIMEOUT_SECS=10
       - AI_ENABLED=false
       - SIGNUP_WHITELIST_ENABLED=true
-      - GUEST_INVITES_REQUIRE_ADMIN_APPROVAL=false
+      - GUEST_INVITES_REQUIRE_ADMIN_APPROVAL=true
       - APPFLOWY_WEBSOCKET_MAILBOX_SIZE=3000
     healthcheck:
       test: "curl --fail http://127.0.0.1:8000/api/health || exit 1"
