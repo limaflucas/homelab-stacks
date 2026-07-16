@@ -107,8 +107,8 @@ services:
       - PGID=1000
       - TZ=America/Halifax
       - FILE__RADARR__POSTGRES__PASSWORD=/run/secrets/radarr_database_password
-      - RADARR__POSTGRES__HOST=pgbouncer
-      - RADARR__POSTGRES__PORT=6432
+      - RADARR__POSTGRES__HOST=pgpool
+      - RADARR__POSTGRES__PORT=5432
       - RADARR__POSTGRES__USER=radarr
       - RADARR__POSTGRES__MAINDB=radarr
       - RADARR__POSTGRES__LOGDB=radarr_logs
@@ -205,8 +205,8 @@ services:
       - PGID=1000
       - LOG_LEVEL=INFO
       - DB_TYPE=postgres
-      - DB_HOST=pgbouncer
-      - DB_PORT=6432
+      - DB_HOST=pgpool
+      - DB_PORT=5432
       - DB_USER=seerr
       - DB_NAME=seerr
     volumes:
@@ -248,8 +248,8 @@ services:
       - PGID=1000
       - TZ=America/Halifax
       - FILE__SONARR__POSTGRES__PASSWORD=/run/secrets/sonarr_database_password
-      - SONARR__POSTGRES__HOST=pgbouncer
-      - SONARR__POSTGRES__PORT=6432
+      - SONARR__POSTGRES__HOST=pgpool
+      - SONARR__POSTGRES__PORT=5432
       - SONARR__POSTGRES__USER=sonarr
       - SONARR__POSTGRES__MAINDB=sonarr
       - SONARR__POSTGRES__LOGDB=sonarr_logs

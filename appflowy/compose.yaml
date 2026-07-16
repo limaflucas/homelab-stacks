@@ -12,11 +12,6 @@ services:
     deploy:
       mode: replicated
       replicas: 1
-      restart_policy:
-        condition: on-failure
-        delay: 5s
-        max_attempts: 5
-        window: 120s
       resources:
         limits:
           cpus: '0.5'
@@ -31,19 +26,23 @@ services:
       - GOTRUE_JWT_SECRET=${GOTRUE_JWT_SECRET}
       - GOTRUE_JWT_EXP=${GOTRUE_JWT_EXP}
       - DATABASE_URL=${GOTRUE_DATABASE_URL}
-      - GOTRUE_DISABLE_SIGNUP=false
-      - GOTRUE_MAILER_AUTOCONFIRM=false
+      - GOTRUE_DISABLE_SIGNUP=${GOTRUE_DISABLE_SIGNUP}
+      - GOTRUE_MAILER_AUTOCONFIRM=${GOTRUE_MAILER_AUTOCONFIRM}
       - GOTRUE_SITE_URL=appflowy-flutter://
-      - GOTRUE_URI_ALLOW_LIST=**     
+      - GOTRUE_URI_ALLOW_LIST=**
       - GOTRUE_JWT_ADMIN_GROUP_NAME=supabase_admin
       - GOTRUE_DB_DRIVER=postgres
-      - API_EXTERNAL_URL=https://gotrue.appflowy.homelab
+      - API_EXTERNAL_URL=https://cloud.appflowy.homelab
+      - GOTRUE_MAILER_URLPATHS_CONFIRMATION=/gotrue/verify
+      - GOTRUE_MAILER_URLPATHS_INVITE=/gotrue/verify
+      - GOTRUE_MAILER_URLPATHS_RECOVERY=/gotrue/verify
+      - GOTRUE_MAILER_URLPATHS_EMAIL_CHANGE=/gotrue/verify
       - PORT=9999      
     healthcheck:
       test: "curl --fail http://127.0.0.1:9999/health || exit 1"
-      interval: 5s
+      interval: 10s
       timeout: 5s
-      retries: 12
+      retries: 5
       start_period: 40s
     networks:
       - pgpool
@@ -51,33 +50,27 @@ services:
     deploy:
       mode: replicated
       replicas: 1
-      restart_policy:
-        condition: on-failure
-        delay: 5s
-        max_attempts: 5
-        window: 120s
       resources:
         limits:
           cpus: '0.5'
-          memory: 256M
+          memory: 512M
 
   appflowy-cloud:
     image: appflowyinc/appflowy_cloud:latest
-    entrypoint: /bin/sh -c "update-ca-certificates && exec appflowy_cloud"
     volumes:
-      - /mnt/docker-data/services/step-ca/certs/root_ca.crt:/usr/local/share/ca-certificates/homelab-root-ca.crt:ro
+      - /mnt/docker-data/services/step-ca/certs/root_ca.crt:/etc/ssl/certs/ca-certificates.crt:ro
     environment:
       - TZ=America/Halifax
       - RUST_LOG=info
       - APPFLOWY_ENVIRONMENT=production
       - APPFLOWY_DATABASE_URL=${APPFLOWY_DATABASE_URL}
-      - APPFLOWY_DATABASE_MAX_CONNECTIONS=40
+      - APPFLOWY_DATABASE_MAX_CONNECTIONS=5
       - APPFLOWY_GOTRUE_JWT_SECRET=${GOTRUE_JWT_SECRET}
       - APPFLOWY_GOTRUE_BASE_URL=http://gotrue:9999
       - APPFLOWY_REDIS_URI=redis://appflowy-redis:6379
       - APPFLOWY_S3_CREATE_BUCKET=true
       - APPFLOWY_S3_USE_MINIO=true
-      - APPFLOWY_S3_MINIO_URL=https://api.minio.homelab
+      - APPFLOWY_S3_MINIO_URL=http://minio:9000
       - APPFLOWY_S3_ACCESS_KEY=${APPFLOWY_S3_ACCESS_KEY}
       - APPFLOWY_S3_SECRET_KEY=${APPFLOWY_S3_SECRET_KEY}
       - APPFLOWY_S3_PRESIGNED_URL_ENDPOINT=https://api.minio.homelab
@@ -94,9 +87,9 @@ services:
       - APPFLOWY_WEBSOCKET_MAILBOX_SIZE=3000
     healthcheck:
       test: "curl --fail http://127.0.0.1:8000/api/health || exit 1"
-      interval: 5s
+      interval: 10s
       timeout: 5s
-      retries: 12
+      retries: 5
       start_period: 40s
     networks:
       - pgpool
@@ -108,60 +101,43 @@ services:
       placement:
         constraints:
           - node.hostname != vm-docker-bragi
-      restart_policy:
-        condition: on-failure
-        delay: 5s
-        max_attempts: 5
-        window: 120s
       resources:
         limits:
-          cpus: '0.5'
-          memory: 256M
+          cpus: '1'
+          memory: 1G
 
   appflowy-admin:
-    restart: on-failure
     image: appflowyinc/admin_frontend:latest
     volumes:
-      - /mnt/docker-data/services/step-ca/certs/root_ca.crt:/usr/local/share/ca-certificates/homelab-root-ca.crt:ro
+      - /mnt/docker-data/services/step-ca/certs/root_ca.crt:/etc/ssl/certs/ca-certificates.crt:ro
     environment:
       - TZ=America/Halifax
       - APPFLOWY_GOTRUE_BASE_URL=https://gotrue.appflowy.homelab
       - APPFLOWY_BASE_URL=https://cloud.appflowy.homelab
       - APPFLOWY_ALLOWED_ORIGINS=**
-      - NODE_EXTRA_CA_CERTS=/usr/local/share/ca-certificates/homelab-root-ca.crt
+      - NODE_EXTRA_CA_CERTS=/etc/ssl/certs/ca-certificates.crt
     networks:
       - appflowy_private
     deploy:
       mode: replicated
       replicas: 1
-      restart_policy:
-        condition: on-failure
-        delay: 5s
-        max_attempts: 5
-        window: 120s
       resources:
         limits:
           cpus: '0.5'
           memory: 256M
 
   appflowy-web:
-    restart: on-failure
     image: appflowyinc/appflowy_web:latest
     environment:
       - TZ=America/Halifax
       - APPFLOWY_BASE_URL=https://cloud.appflowy.homelab
-      - APPFLOWY_GOTRUE_BASE_URL=https://gotrue.appflowy.homelab
+      - APPFLOWY_GOTRUE_BASE_URL=https://cloud.appflowy.homelab/gotrue
       - APPFLOWY_WS_BASE_URL=wss://cloud.appflowy.homelab/ws/v2
     networks:
       - appflowy_private
     deploy:
       mode: replicated
       replicas: 1
-      restart_policy:
-        condition: on-failure
-        delay: 5s
-        max_attempts: 5
-        window: 120s
       resources:
         limits:
           cpus: '0.5'

@@ -13,12 +13,12 @@ It hosts all media sourcing, index management, downloading, request handling, an
 *   **Gluetun SOCKS Proxy** (`gluetun-socks`): SOCKS5 proxy (gost) that forwards local network requests through the VPN tunnel.
 
 ### 2. Sourcing & Library Management
-*   **Radarr** (`radarr`): Automated movie downloader. Connects to PostgreSQL (`pgbouncer`) for database storage.
-*   **Sonarr** (`sonarr`): Automated TV series and anime downloader. Connects to PostgreSQL (`pgbouncer`) for database storage.
+*   **Radarr** (`radarr`): Automated movie downloader. Connects to PostgreSQL (`pgpool`) for database storage.
+*   **Sonarr** (`sonarr`): Automated TV series and anime downloader. Connects to PostgreSQL (`pgpool`) for database storage.
 *   **Prowlarr** (`prowlarr`): Torrent and Usenet indexer manager. Connects to Radarr and Sonarr to sync indexers.
 
 ### 3. Request & Discovery
-*   **Seerr** (`seerr`): Request management front-end (Overseerr) for Plex users. Connects to PostgreSQL (`pgbouncer`) for library request databases.
+*   **Seerr** (`seerr`): Request management front-end (Overseerr) for Plex users. Connects to PostgreSQL (`pgpool`) for library request databases.
 
 ### 4. Downloader
 *   **SABnzbd** (`sabnzbd`): High-performance Usenet downloader. Routes its outbound downloads through the `gluetun` VPN container to ensure secure, private downloads.
@@ -29,7 +29,7 @@ It hosts all media sourcing, index management, downloading, request handling, an
 
 The stack interacts with two networks:
 1.  `mouseion_private` (External: `mouseion_private`): A dedicated overlay network created by the `infra` stack, securing traffic between Nginx Proxy Manager, Seerr, Sonarr, Radarr, Prowlarr, SABnzbd, and Gluetun.
-2.  `pgpool` (External: `pgpool_net`): A dedicated database network. Connects `radarr`, `sonarr`, and `seerr` directly to the `pgbouncer` service in the `infra` stack.
+2.  `pgpool` (External: `pgpool_net`): A dedicated database network. Connects `radarr`, `sonarr`, and `seerr` directly to the `pgpool` service in the `infra` stack.
 
 ---
 
