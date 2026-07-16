@@ -37,7 +37,38 @@ You must configure Nginx Proxy Manager (NPM) to route traffic to the following s
 *   `https://cloud.appflowy.homelab` -> Proxy to `http://appflowy-cloud:8000` (enable WebSocket support).
 *   `https://gotrue.appflowy.homelab` -> Proxy to `http://gotrue:9999`.
 *   `https://web.appflowy.homelab` -> Proxy to `http://appflowy-web:80` (or `appflowy-admin:80` depending on path, typically `appflowy-web` runs on the main web address).
-*   **Crucial Subpath Route:** Under the `cloud.appflowy.homelab` proxy host, you must define a custom location `/gotrue/` pointing to `http://gotrue:9999/` with the Host header overridden to `gotrue.appflowy.homelab` and the path prefix stripped.
+*   **Crucial Subpath Route:** Under the `cloud.appflowy.homelab` proxy host, you must define a custom location `/gotrue/` pointing to `http://gotrue:9999/` (with Host header overridden to `gotrue.appflowy.homelab` and the path prefix stripped).
+    
+    Add the following custom Nginx configuration block to this location (or in the advanced configuration section) to properly handle CORS preflight requests and avoid duplicate headers:
+
+    ```nginx
+    location /gotrue/ {
+        set $cors_origin "";
+        if ($http_origin ~* ^https://(web|cloud|admin)\.appflowy\.homelab$) {
+            set $cors_origin $http_origin;
+        }
+
+        # Preflight — short-circuit before it ever reaches gotrue
+        if ($request_method = OPTIONS) {
+            add_header 'Access-Control-Allow-Origin' $cors_origin always;
+            add_header 'Access-Control-Allow-Methods' 'GET, POST, PUT, DELETE, OPTIONS' always;
+            add_header 'Access-Control-Allow-Headers' 'Authorization, Content-Type, X-Client-Info, Apikey' always;
+            add_header 'Access-Control-Allow-Credentials' 'true' always;
+            add_header 'Access-Control-Max-Age' 86400 always;
+            return 204;
+        }
+
+        # In case gotrue emits its own (possibly wrong) CORS headers, don't let them double up
+        proxy_hide_header Access-Control-Allow-Origin;
+        proxy_hide_header Access-Control-Allow-Credentials;
+        add_header 'Access-Control-Allow-Origin' $cors_origin always;
+        add_header 'Access-Control-Allow-Credentials' 'true' always;
+
+        proxy_pass http://gotrue:9999/;
+        proxy_set_header Host gotrue.appflowy.homelab;
+        proxy_pass_request_headers on;
+    }
+    ```
 
 ### 2. Host Directories
 Ensure the following persistence and certificate paths are mounted on your Swarm nodes:
