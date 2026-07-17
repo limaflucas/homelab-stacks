@@ -1,0 +1,12 @@
+general_settings:
+  master_key: os.environ/LITELLM_MASTER_KEY
+  database_url: os.environ/DATABASE_URL
+  proxy_batch_write_at: 60
+  allow_requests_on_db_unavailable: true
+
+litellm_settings:
+  request_timeout: 600
+  set_verbose: false
+  json_logs: true
+  drop_params: true
+  telemetry: false

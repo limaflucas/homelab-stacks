@@ -490,6 +490,7 @@ services:
       mouseion_private:
       vaultwarden_private:
       appflowy_private:
+      llms_private:
 
   #############################################
   # REGISTRY
@@ -591,6 +592,10 @@ networks:
   appflowy_private:
     driver: overlay
     name: appflowy_private
+    attachable: true
+  llms_private:
+    driver: overlay
+    name: llms_private
     attachable: true
 
 secrets:

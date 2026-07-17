@@ -6,6 +6,7 @@ Welcome to the Homelab project. This repository contains Docker Swarm and Docker
 
 ### Apps
 *   **[Grafana & Monitoring](./apps/grafana/README.md)**: Observability stack for collecting and visualizing metrics and logs (Grafana, VictoriaMetrics, VictoriaLogs, Alloy).
+*   **[LLMs](./llms/README.md)**: Open WebUI (port `8080`), LobeChat (port `3210`), and LiteLLM (port `4000`).
 *   **[Outline](./apps/outline/README.md)**: A modern team knowledge base and wiki.
 *   **[Plex](./apps/plex/)**: Media server for streaming local content.
 

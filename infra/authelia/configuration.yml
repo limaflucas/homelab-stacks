@@ -67,3 +67,15 @@ identity_providers:
           - email
           - groups
         userinfo_signed_response_alg: none
+      - client_id: lobechat
+        client_name: LobeChat
+        client_secret: 'YOUR KEY HERE'
+        public: false
+        authorization_policy: one_factor
+        redirect_uris:
+          - https://lobechat.homelab/api/auth/callback/authelia
+        scopes:
+          - openid
+          - profile
+          - email
+        userinfo_signed_response_alg: none

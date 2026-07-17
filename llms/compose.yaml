@@ -1,0 +1,40 @@
+services:
+  #############################################
+  # LITELLM
+  #############################################
+  litellm:
+    image: ghcr.io/berriai/litellm-database:main-stable
+    command: ["--config", "/app/config/config.yaml", "--port", "4000", "--num_workers", "1", "--run_gunicorn"]
+    environment:
+      - TZ=America/Halifax
+      - LITELLM_LOG=INFO
+      - STORE_MODEL_IN_DB=True
+      - DATABASE_URL=postgres://${LITELLM_DB_USER}:${LITELLM_DB_PASSWORD}@pgpool:5432/litellm
+      - LITELLM_MASTER_KEY=${LITELLM_MASTER_KEY}
+    volumes:
+      - /mnt/docker-data/services/litellm/config.yaml:/app/config/config.yaml
+    networks:
+      - llms_private
+      - pgpool
+    dns:
+      - 192.168.5.19
+    deploy:
+      mode: replicated
+      replicas: 1
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 2G
+      restart_policy:
+        condition: on-failure
+        delay: 10s
+        max_attempts: 5
+        window: 120s
+
+networks:
+  llms_private:
+    external: true
+    name: llms_private
+  pgpool:
+    external: true
+    name: pgpool_net
