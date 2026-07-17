@@ -31,6 +31,38 @@ services:
         max_attempts: 5
         window: 120s
 
+  # #############################################
+  # # OPEN WEBUI
+  # #############################################
+  open-webui:
+    image: ghcr.io/open-webui/open-webui:main
+    environment:
+      - DATABASE_URL=postgresql://${WEBUI_DB_USER}:${WEBUI_DB_PASSWORD}@pgpool:5432/openwebui
+      - WEBUI_SECRET_KEY=${WEBUI_SECRET_KEY}
+      - OPENAI_API_BASE_URL=http://litellm:4000/v1
+      - OPENAI_API_KEY=${LITELLM_MASTER_KEY}
+      - OLLAMA_BASE_URL=https://zeus.ollama.homelab:11434
+      - ENABLE_SIGNUP=True
+    volumes:
+      - /mnt/docker-data/services/open-webui/uploads:/app/backend/uploads
+      - /mnt/docker-data/services/step-ca/certs/root_ca.crt:/etc/ssl/certs/ca-certificates.crt:ro
+    deploy:
+      replicas: 1
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+      restart_policy:
+        condition: on-failure
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - llms_private
+      - pgpool
+
 networks:
   llms_private:
     external: true
