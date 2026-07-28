@@ -2,7 +2,7 @@
 
 **Date:** 2026-07-28
 **Verdict:** ✅ **PASS**
-**Relates to:** `docs/superpowers/plans/2026-07-28-devflow-infrastructure.md` — Task 1
+**Relates to:** `.docs/superpowers/plans/2026-07-28-devflow-infrastructure.md` — Task 1
 
 ## Question
 
