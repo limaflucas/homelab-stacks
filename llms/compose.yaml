@@ -11,6 +11,8 @@ services:
       - STORE_MODEL_IN_DB=True
       - DATABASE_URL=postgres://${LITELLM_DB_USER}:${LITELLM_DB_PASSWORD}@pgpool:5432/litellm
       - LITELLM_MASTER_KEY=${LITELLM_MASTER_KEY}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - ZHIPU_API_KEY=${ZHIPU_API_KEY}
     volumes:
       - /mnt/docker-data/services/litellm/config.yaml:/app/config/config.yaml
     networks:
