@@ -1,0 +1,303 @@
+services:
+  #############################################
+  # GITEA
+  #############################################
+  gitea:
+    image: gitea/gitea:1
+    environment:
+      - TZ=America/Halifax
+      - USER_UID=1000
+      - USER_GID=1000
+      # Database — PASSWD__FILE is Gitea's native Docker-secret support:
+      # any GITEA__ variable accepts a __FILE suffix pointing at a file path.
+      - GITEA__database__DB_TYPE=postgres
+      - GITEA__database__HOST=pgpool:5432
+      - GITEA__database__NAME=gitea
+      - GITEA__database__USER=gitea
+      - GITEA__database__PASSWD__FILE=/run/secrets/gitea_db_password
+      # Server
+      - GITEA__server__DOMAIN=gitea.homelab
+      - GITEA__server__ROOT_URL=https://gitea.homelab/
+      - GITEA__server__SSH_DOMAIN=gitea.homelab
+      - GITEA__server__SSH_PORT=2222
+      - GITEA__server__SSH_LISTEN_PORT=2222
+      # Single-operator homelab instance: no open registration.
+      - GITEA__service__DISABLE_REGISTRATION=true
+      - GITEA__actions__ENABLED=true
+      # Pre-shared global runner registration token (Gitea >= 1.23). Lets the
+      # runner self-register from a secret rather than a token copied out of the
+      # admin UI, so redeploying the runner never needs manual re-registration.
+      - GITEA_RUNNER_REGISTRATION_TOKEN_FILE=/run/secrets/gitea_runner_token
+    volumes:
+      - /mnt/docker-data/services/gitea/data:/data
+    secrets:
+      - gitea_db_password
+      - gitea_runner_token
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/healthz"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 90s
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints:
+          - node.hostname != vm-docker-bragi
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
+      restart_policy:
+        condition: on-failure
+        delay: 10s
+        max_attempts: 5
+        window: 120s
+    networks:
+      - devflow_private
+      - pgpool
+
+  #############################################
+  # GITEA ACTIONS RUNNER
+  #############################################
+  # Pinned to one node because it drives that node's Docker socket to spawn
+  # sibling job containers. Those containers are NOT swarm-managed and only
+  # exist on whichever node the runner lands on, so placement must be fixed.
+  gitea-runner:
+    image: gitea/runner:latest
+    environment:
+      - TZ=America/Halifax
+      - GITEA_INSTANCE_URL=http://gitea:3000
+      - GITEA_RUNNER_REGISTRATION_TOKEN_FILE=/run/secrets/gitea_runner_token
+      - GITEA_RUNNER_NAME={{.Node.Hostname}}
+      - CONFIG_FILE=/config/config.yaml
+    volumes:
+      - /mnt/docker-data/services/gitea-runner/data:/data
+      - /mnt/docker-data/services/gitea-runner/config.yaml:/config/config.yaml:ro
+      - /var/run/docker.sock:/var/run/docker.sock
+    secrets:
+      - gitea_runner_token
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints:
+          - node.hostname != vm-docker-bragi
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+      restart_policy:
+        condition: on-failure
+        delay: 15s
+        max_attempts: 5
+        window: 180s
+    networks:
+      - devflow_private
+
+  #############################################
+  # VALKEY  (Plane cache / session store)
+  #############################################
+  # Pinned: Mnesia/RDB state on shared network storage is a known source of
+  # corruption, so both Plane's stateful dependencies keep a fixed home.
+  valkey:
+    image: valkey/valkey:8-alpine
+    command: ["valkey-server", "--save", "60", "1", "--appendonly", "no"]
+    environment:
+      - TZ=America/Halifax
+    volumes:
+      - /mnt/docker-data/services/valkey:/data
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints:
+          - node.hostname != vm-docker-bragi
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+      restart_policy:
+        condition: on-failure
+        delay: 10s
+        max_attempts: 5
+        window: 120s
+    networks:
+      - devflow_private
+
+  #############################################
+  # RABBITMQ  (Plane background job broker)
+  #############################################
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+    # RABBITMQ_DEFAULT_PASS_FILE / _USER_FILE are on the image's hard-fail
+    # deprecation list — setting either aborts startup. The plain
+    # RABBITMQ_DEFAULT_* variables still work but would mean a plaintext
+    # password in this file, so the credentials are written from the secret
+    # into a drop-in config instead.
+    #
+    # The real entrypoint is re-invoked as the last step, with `rabbitmq-server`
+    # as its argument, so it still performs its own chown and drop to the
+    # rabbitmq user. Calling it any other way would leave the broker as root.
+    entrypoint:
+      - /bin/bash
+      - -c
+      - |
+        set -e
+        cat > /etc/rabbitmq/conf.d/20-plane.conf <<EOF
+        default_user = plane
+        default_pass = $$(cat /run/secrets/rabbitmq_password)
+        default_vhost = plane
+        EOF
+        # chown before chmod, and do not use `umask` here: a restrictive umask
+        # leaks past `exec` into the broker, which then cannot read its own
+        # Erlang cookie.
+        chown rabbitmq:rabbitmq /etc/rabbitmq/conf.d/20-plane.conf
+        chmod 400 /etc/rabbitmq/conf.d/20-plane.conf
+        exec docker-entrypoint.sh rabbitmq-server
+    environment:
+      - TZ=America/Halifax
+    volumes:
+      - /mnt/docker-data/services/rabbitmq:/var/lib/rabbitmq
+    secrets:
+      - rabbitmq_password
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints:
+          - node.hostname != vm-docker-bragi
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
+      restart_policy:
+        condition: on-failure
+        delay: 10s
+        max_attempts: 5
+        window: 120s
+    networks:
+      - devflow_private
+
+  #############################################
+  # PLANE  (all-in-one community image)
+  #############################################
+  plane:
+    image: makeplane/plane-aio-community:stable
+    # The image's /app/start.sh rewrites the keys it manages into /app/plane.env
+    # and then runs `export $(grep -v '^#' plane.env | xargs)`. That re-export
+    # resets every variable it does NOT manage back to the image default, so
+    # `environment:` alone cannot set WEBHOOK_ALLOWED_HOSTS — the appended line
+    # wins because export takes the last occurrence of a key.
+    # The image also has no _FILE support, so secrets are read here and exported
+    # before start.sh runs its required-variable check.
+    command:
+      - /bin/bash
+      - -c
+      - |
+        set -e
+        # /app/logs and /app/data are bind mounts, which hides the directory
+        # tree the image ships. supervisord aborts if a program's log directory
+        # is missing, so recreate the two it needs.
+        mkdir -p /app/logs/access /app/logs/error /app/data
+        export DATABASE_URL="$$(cat /run/secrets/plane_db_url)"
+        export SECRET_KEY="$$(cat /run/secrets/plane_secret_key)"
+        export AWS_ACCESS_KEY_ID="$$(cat /run/secrets/plane_minio_access_key)"
+        export AWS_SECRET_ACCESS_KEY="$$(cat /run/secrets/plane_minio_secret_key)"
+        export AMQP_URL="amqp://plane:$$(cat /run/secrets/rabbitmq_password)@rabbitmq:5672/plane"
+        # Plane refuses to deliver webhooks to private IPs unless the target is
+        # allowlisted. Every agent component lives on devflow_private, so
+        # without this the board -> agent trigger fails silently.
+        echo "WEBHOOK_ALLOWED_HOSTS=conductor" >> /app/plane.env
+        exec /app/start.sh
+    environment:
+      - TZ=America/Halifax
+      # start.sh derives APP_DOMAIN, WEB_URL and CORS_ALLOWED_ORIGINS from these.
+      - DOMAIN_NAME=plane.homelab
+      - APP_PROTOCOL=https
+      # NPM terminates TLS, so the image's built-in Caddy stays on plain HTTP
+      # and must not attempt its own ACME.
+      - SITE_ADDRESS=:80
+      - REDIS_URL=redis://valkey:6379/0
+      # MinIO is addressed as a plain S3 endpoint. start.sh hardcodes USE_MINIO=0
+      # regardless of what is passed, which is what we want here.
+      - AWS_REGION=us-east-1
+      - AWS_S3_BUCKET_NAME=plane-app
+      - AWS_S3_ENDPOINT_URL=https://api.minio.homelab
+      - FILE_SIZE_LIMIT=5242880
+    volumes:
+      - /mnt/docker-data/services/plane/data:/app/data
+      - /mnt/docker-data/services/plane/logs:/app/logs
+      - /mnt/docker-data/services/step-ca/certs/root_ca.crt:/etc/ssl/certs/homelab-ca.crt:ro
+    secrets:
+      - plane_db_url
+      - plane_secret_key
+      - plane_minio_access_key
+      - plane_minio_secret_key
+      - rabbitmq_password
+    # bash is guaranteed present (start.sh is a bash script); curl and wget are not.
+    healthcheck:
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/localhost/80"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 180s
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints:
+          - node.hostname != vm-docker-bragi      
+      resources:
+        limits:
+          cpus: '2'
+          memory: 4G
+      restart_policy:
+        condition: on-failure
+        delay: 15s
+        max_attempts: 5
+        window: 300s
+    networks:
+      - devflow_private
+      - pgpool
+      - minio
+
+networks:
+  devflow_private:
+    external: true
+    name: devflow_private
+  pgpool:
+    external: true
+    name: pgpool_net
+  minio:
+    external: true
+    name: minio_net
+
+secrets:
+  gitea_db_password:
+    external: true
+  gitea_runner_token:
+    external: true
+  plane_db_url:
+    external: true
+  plane_secret_key:
+    external: true
+  plane_minio_access_key:
+    external: true
+  plane_minio_secret_key:
+    external: true
+  rabbitmq_password:
+    external: true

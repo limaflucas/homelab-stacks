@@ -491,6 +491,7 @@ services:
       vaultwarden_private:
       appflowy_private:
       llms_private:
+      devflow_private:
 
   #############################################
   # REGISTRY
@@ -596,6 +597,10 @@ networks:
   llms_private:
     driver: overlay
     name: llms_private
+    attachable: true
+  devflow_private:
+    driver: overlay
+    name: devflow_private
     attachable: true
 
 secrets:
