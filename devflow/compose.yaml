@@ -4,6 +4,10 @@ services:
   #############################################
   gitea:
     image: gitea/gitea:1
+    # Quoted: an unquoted a:b is a YAML sexagesimal candidate, and the repo's
+    # other published ports follow the same convention.
+    ports:
+      - "2222:22"
     environment:
       - TZ=America/Halifax
       - USER_UID=1000
@@ -18,9 +22,13 @@ services:
       # Server
       - GITEA__server__DOMAIN=gitea.homelab
       - GITEA__server__ROOT_URL=https://gitea.homelab/
+      # SSH_PORT is only the port advertised in clone URLs. This image serves
+      # SSH from its integrated OpenSSH daemon on container port 22, not from
+      # Gitea's built-in server, so SSH_LISTEN_PORT does not apply here — it is
+      # read only when START_SSH_SERVER=true (the rootless image's model).
+      # The 2222->22 publish below is what makes the advertised port real.
       - GITEA__server__SSH_DOMAIN=gitea.homelab
       - GITEA__server__SSH_PORT=2222
-      - GITEA__server__SSH_LISTEN_PORT=2222
       # Single-operator homelab instance: no open registration.
       - GITEA__service__DISABLE_REGISTRATION=true
       - GITEA__actions__ENABLED=true
@@ -59,13 +67,29 @@ services:
       - pgpool
 
   #############################################
-  # GITEA ACTIONS RUNNER
+  # GITEA ACTIONS RUNNERS
   #############################################
-  # Pinned to one node because it drives that node's Docker socket to spawn
-  # sibling job containers. Those containers are NOT swarm-managed and only
-  # exist on whichever node the runner lands on, so placement must be fixed.
+  # One runner for every build surface. There were three — one per surface —
+  # only because a runner's label-to-image mapping is fixed at registration, so
+  # three job images meant three runners. Workflows now name their own image
+  # under `jobs.<id>.container.image`, which act_runner honours ahead of the
+  # label's default, so the mapping had nothing left to do. Workflows select
+  # with `runs-on: homelab`.
+  #
+  # Pinned to a *named* node, not merely excluded from bragi. The runner keeps
+  # its registration in `.runner` under its host directory, and it drives that
+  # node's Docker socket to spawn sibling job containers which are not
+  # swarm-managed. If the task were allowed to float, it would come up on a node
+  # with no registration file and register a second time under the same name,
+  # leaving an orphaned offline runner behind in Gitea.
+  #
+  # The node needs no registry login. Job images are pulled with credentials the
+  # workflow supplies under `container.credentials`, so nothing depends on
+  # per-node `docker login` state. See README ("Registry credentials").
   gitea-runner:
-    image: gitea/runner:latest
+    # Pinned rather than :latest. A floating runner version can change how
+    # workflows execute without any change in this repo.
+    image: gitea/runner:2.3.0
     environment:
       - TZ=America/Halifax
       - GITEA_INSTANCE_URL=http://gitea:3000
@@ -83,9 +107,12 @@ services:
       replicas: 1
       placement:
         constraints:
-          - node.hostname != vm-docker-bragi
+          - node.hostname == vm-docker-adam
       resources:
         limits:
+          # Bounds the runner process only. Job containers are non-swarm
+          # siblings on the node and are not covered by this limit; capacity: 5
+          # is what governs how many can be in flight.
           cpus: '2'
           memory: 2G
       restart_policy:

@@ -1,0 +1,52 @@
+log:
+  level: info
+
+runner:
+  file: .runner
+  # Was 2 + 2 + 1 across three per-surface runners. Consolidated into one, so the
+  # total stays the same. Raise only after watching real memory use on the node —
+  # each job is a full sibling container, not a lightweight process, and the
+  # service's own memory limit does not bound them.
+  capacity: 5
+  timeout: 1h
+  fetch_timeout: 5s
+  fetch_interval: 2s
+  # Labels set here are used at registration and override any --labels flag or
+  # GITEA_RUNNER_LABELS env var. Workflows select this runner with
+  # `runs-on: homelab`.
+  #
+  # This image is only a fallback. Every project workflow names its own image
+  # under `jobs.<id>.container.image`, which act_runner honours ahead of the
+  # label's default, so nothing project-specific belongs here any more. A job
+  # that reaches this image forgot to declare one.
+  #
+  # Gitea publishes ubuntu-latest / ubuntu-24.04 / ubuntu-22.04 only; there is no
+  # slim variant to switch to.
+  labels:
+    - "homelab:docker://docker.gitea.com/runner-images:ubuntu-24.04"
+
+cache:
+  # Disabled for now. When enabled, the runner starts a cache server and job
+  # containers must reach it on the runner's auto-detected IP — which on a
+  # multi-network swarm task is easy to get wrong. Turn on once the basic
+  # workflow path is proven.
+  enabled: false
+
+container:
+  # Job containers join the same overlay as Gitea so `actions/checkout` can
+  # reach http://gitea:3000 by service name. Without this the runner creates a
+  # throwaway bridge network per job and checkout cannot resolve Gitea at all.
+  network: devflow_private
+  privileged: false
+  # Empty list = workflows may not bind-mount anything from the host.
+  valid_volumes: []
+  # "-" means: auto-detect a Docker host for the runner itself, but do NOT mount
+  # the socket into job containers. Workflow code is agent-authored, and a
+  # mounted socket is root on the node. Images are built by Komodo, which is why
+  # no job here ever needs this relaxed.
+  docker_host: "-"
+  # false so a node that already holds a pinned tag reuses it. Tags are immutable
+  # by construction: the Komodo builds have auto_increment_version,
+  # include_latest_tag and include_version_tags all disabled, so no tag a job
+  # references is ever republished with different content.
+  force_pull: false
