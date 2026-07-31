@@ -244,9 +244,11 @@ that names the fix.
 shopper push touching .ci/**
   └─ .gitea/workflows/ci-images.yaml     ← supplies the path filter Komodo lacks
        ├─ guard: tag must not already exist in the registry
-       ├─ POST /write/UpdateBuild        ← pin version from versions.env
-       └─ POST /execute/RunBuild
-            └─ Komodo clones, builds, pushes → registry.homelab/shopper/*
+       ├─ POST /write/UpdateBuild        ← declare version, image_name, image_tag
+       ├─ POST /execute/RunBuild         ← returns immediately; keep the update id
+       │    └─ Komodo clones, builds, pushes → registry.homelab/shopper/*
+       ├─ POST /read/GetUpdate (poll)    ← until end_ts, then require success
+       └─ registry HEAD manifest         ← assert the expected tag exists
 ```
 
 Komodo's webhooks filter by branch only. A thin path-filtered workflow supplies
@@ -271,13 +273,39 @@ image_registry = [{ domain = "registry.homelab", organization = "shopper" }]
 build_args = "STEP_CA_FINGERPRINT=<fingerprint>"
 pre_build = "cp /usr/local/share/ca-certificates/homelab-root-ca.crt .ci/api/homelab-root-ca.crt"
 auto_increment_version = false   # default true
-include_latest_tag     = false   # default true
-include_version_tags   = false   # default true
 ```
 
-The three overridden defaults all publish **moving** tags — `:latest`, `:1.2`,
-`:1`. Combined with `force_pull: false` they are the silent-drift hazard below,
-so each must be off.
+Tagging is **not** configured here. `UpdateBuild` sets `image_name`, `image_tag`
+and the three `include_*` flags on every run, so the repo owns the published tag
+and a UI edit cannot change what gets pushed. Only `image_registry` stays
+UI-managed, because it names a stored credential.
+
+### How Komodo composes `-t`, and the trap in it
+
+`get_image_tags` emits tags from exactly four flags plus any additional tags, and
+**nothing else** — there is no unconditional version tag:
+
+| Flag | Emits |
+|---|---|
+| `image_tag` | `name:{image_tag}` — pure passthrough |
+| `include_latest_tag` | `name:latest` |
+| `include_version_tags` | `name:{version}` **and** `name:{major}.{minor}` **and** `name:{major}` |
+| `include_commit_tag` | `name:{commit_hash}` |
+
+`include_latest_tag` and `include_version_tags` publish **moving** tags —
+`:latest`, `:1.2`, `:1` — which with `force_pull: false` are the silent-drift
+hazard below. But `include_version_tags` is all-or-nothing: switching it off to
+suppress `:1.2` and `:1` also removes the immutable `:1.2.3`, and with all four
+unset the tag list is empty, so Komodo runs `docker build --push` with no `-t`
+and the build dies on `tag is needed when pushing to registry`.
+
+Setting `image_tag` to the declared version is the way out: one immutable tag,
+no moving tags. (Cost us a build to learn — `--push` is only added when
+`docker_login` *succeeded*, so a missing `-t` never indicates a registry
+misconfiguration.)
+
+`image_name` has a related trap: left empty, Komodo falls back to the **build
+name**, publishing `shopper-ci-api` rather than `ci-api`.
 
 ### Tag immutability needs enforcement, not convention
 
@@ -394,15 +422,30 @@ TLS to `https://gitea.homelab` without `-k`.
 | Tag already published | Trigger workflow fails with the bump instruction | Bump `versions.env` |
 | Playwright version mismatch | CI job fails naming both versions | Bump `PLAYWRIGHT_VERSION`, rebuild `ci-web` |
 | Registry auth failure | Pull fails in job container | Verify org-level Gitea secrets |
-| Komodo build failure | Komodo UI; trigger workflow already green | Read Komodo build log |
+| Komodo build failure | Trigger workflow fails, printing Komodo's build log | Fix, bump `versions.env` |
+| Build never finishes | Workflow fails at the poll deadline and cancels the build | Read Komodo build log |
+| Pushed under the wrong name | Komodo reports success; the registry assertion fails | Fix `image_registry` |
 | Komodo unreachable | `curl` fails the trigger job | Check Komodo Core health |
 | CA rotated | Build fails naming expected vs actual fingerprint | Re-read it; bump `STEP_CA_FINGERPRINT` |
 
-The trigger is fire-and-forget: the workflow reports that Komodo was asked to
-build, not that the build succeeded. Build outcomes live in Komodo. Coupling them
-would mean polling Komodo from a workflow, which buys little given that a failed
-build simply means the tag never appears — and the tag guard catches that on the
-next attempt.
+**The trigger waits for the outcome.** It was designed fire-and-forget, on the
+reasoning that a failed build simply means the tag never appears and the guard
+catches it next time. That was wrong in practice: it makes every failure look
+like a pass and defers the news to whenever someone next pushes.
+
+Polling is also not optional the way it first appeared. `RunBuild` spawns the
+build and returns immediately, and the `Update` it returns is created *before*
+the build runs, with `success: true` hardcoded by `make_update`. So the response
+carries no outcome at all — any check against it reports every failure as
+success. The result only exists once `finalize()` sets `success`, `end_ts` and
+`status` together, which means re-reading the update by id.
+
+Poll on `end_ts`, not `status`: `UpdateStatus` derives `Default` as `Complete`,
+so status is the one field that can read "finished" on a record that never ran.
+
+The registry assertion after that is a separate check, not belt-and-braces.
+Komodo succeeding means its build command exited 0 — not that the tag this repo
+expects exists.
 
 ## 9. Open items
 

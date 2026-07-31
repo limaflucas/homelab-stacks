@@ -30,6 +30,23 @@ services:
       # Single-operator homelab instance: no open registration.
       - GITEA__service__DISABLE_REGISTRATION=true
       - GITEA__actions__ENABLED=true
+      # Reap stuck runs. Gitea's defaults suit a busy public instance: a job
+      # whose runner dies keeps "running" for up to 3h, and one no runner ever
+      # picks up sits in "waiting" for up to 24h — reaped on a 6-hourly cron, so
+      # ~30h worst case. That is what leaves runs that cannot be cancelled
+      # (Cancel only marks a task Cancelling; a departed runner never
+      # acknowledges it, so the zombie sweep is what actually ends it).
+      #
+      # ENDLESS_TASK_TIMEOUT must stay above the longest legitimate job. The
+      # ci-images workflow waits up to 25 minutes for a Komodo build, so 45m.
+      - GITEA__actions__ZOMBIE_TASK_TIMEOUT=5m
+      - GITEA__actions__ENDLESS_TASK_TIMEOUT=45m
+      - GITEA__actions__ABANDONED_JOB_TIMEOUT=20m
+      # _0X2E_ is Gitea's escape for a "." in a section name, so this reaches
+      # [cron.cancel_abandoned_jobs]. Without it the section is unreachable from
+      # the environment and the timeout above would still only be acted on every
+      # six hours, which is most of the delay.
+      - GITEA__cron_0X2E_cancel_abandoned_jobs__SCHEDULE=@every 10m
       # Pre-shared global runner registration token (Gitea >= 1.23). Lets the
       # runner self-register from a secret rather than a token copied out of the
       # admin UI, so redeploying the runner never needs manual re-registration.
