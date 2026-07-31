@@ -317,6 +317,12 @@ services:
   #############################################
   # GITEA
   #############################################
+  # SUPERSEDED — deployed as the *non-rootless* `gitea/gitea:1`. That image
+  # serves SSH from an integrated OpenSSH daemon on container port 22, not from
+  # Gitea's built-in Go server, so `SSH_LISTEN_PORT` is inert here and the
+  # publish below must be "2222:22". Following this block as written produces a
+  # connection that is refused (nothing published) or reset (published to the
+  # wrong container port). See devflow/README.md.
   gitea:
     image: gitea/gitea:1-rootless
     entrypoint: ["/bin/sh", "-c"]
@@ -434,6 +440,17 @@ git commit -m "feat(devflow): add Gitea service backed by pgpool"
 **Interfaces:**
 - Consumes: running Gitea from Task 4, `$GITEA_TOKEN`.
 - Produces: a registered `act_runner` labelled `homelab` that executes workflows. The monorepo's CI (a later plan) depends on this label existing.
+
+> **Reconciled 2026-07-30.** This step's end state is correct — one runner
+> labelled `homelab` — but the route there was not direct. Implementation first
+> split into three runners (`homelab-api` / `-web` / `-mobile`), because a
+> runner's label→image mapping is fixed at registration, so three job images
+> meant three services. Once workflows began naming their own image via
+> `jobs.<id>.container.image` (which act_runner honours ahead of the label
+> default), that mapping had nothing left to do and the three collapsed back to
+> one at `capacity: 5`. The label's image is now only a fallback, and nothing
+> project-specific lives in this repo. Do not re-derive the split: it buys
+> nothing once workflows choose their own images.
 
 - [ ] **Step 1: Obtain a runner registration token**
 
@@ -1115,6 +1132,78 @@ git commit -m "docs(devflow): document budget-capped LiteLLM virtual key for age
 
 ---
 
+### Task 10: Build a custom CI job image
+
+**Why this exists.** The runner's default label maps to `node:20-bookworm-slim`,
+which cannot build Go and lacks the tooling a React / React Native / Go monorepo
+needs. Every workflow would otherwise re-install a toolchain on each run, which
+is slow and makes CI results depend on upstream availability.
+
+Pinning the toolchain in an image also makes CI reproducible: an agent that
+passes tests today should pass them tomorrow for the same commit.
+
+**Contents.** Driven by what Phase 2's workflows actually invoke — resist adding
+anything speculative:
+
+| Tool | Reason |
+|---|---|
+| Go | API build and `go test` |
+| Node LTS + a pinned package manager | Web and mobile builds |
+| `git`, `curl`, `ca-certificates` | `actions/checkout`, and trust for `gitea.homelab` |
+| `golangci-lint` | Go static analysis gate |
+
+React Native is the awkward part. A JS-only image covers lint, typecheck and
+Jest, but **not** a device or simulator build — the verification gap already
+recorded in the spec. Do not try to close it here; keep the image JS-only for
+mobile and leave mobile UI verification at Gate 3.
+
+> **SUPERSEDED 2026-07-30 — do not follow the steps below.** CI images are no
+> longer built here or pinned to a runner label. They are owned by the projects
+> that use them: each project keeps versioned Dockerfiles under its own `.ci/`,
+> and Komodo builds and publishes them to `registry.homelab/<project>/`.
+>
+> This repo is infrastructure. An image in it means a toolchain bump — a
+> decision belonging entirely to the application — needs an infrastructure pull
+> request and a runner redeploy. That is the coupling the change removes.
+>
+> Design of record:
+> [`.docs/superpowers/specs/2026-07-30-project-owned-ci-images-design.md`](../specs/2026-07-30-project-owned-ci-images-design.md).
+>
+> Three specifics below are actively wrong now:
+> - **Label pinning** — workflows set `jobs.<id>.container.image`, which
+>   act_runner honours ahead of the label. The label is only a fallback.
+> - **Node registry credentials** — job images are pulled with credentials the
+>   workflow supplies under `container.credentials`, so no node needs a standing
+>   `docker login`.
+> - **A committed root CA** — the step-ca root is copied into the build context
+>   by Komodo's `pre_build` and verified against a pinned fingerprint. It is
+>   never committed.
+
+**Steps (historical).**
+
+1. Write `devflow/ci-image/Dockerfile`. Pin every toolchain to an explicit
+   version — no floating `latest`.
+2. Build and push to the existing private registry:
+   ```bash
+   docker build -t registry.homelab/devflow-ci:<version> devflow/ci-image
+   docker push registry.homelab/devflow-ci:<version>
+   ```
+3. Point the runner label at it in `devflow/config/gitea-runner-config.yaml`:
+   ```yaml
+   labels:
+     - "homelab:docker://registry.homelab/devflow-ci:<version>"
+   ```
+4. Redeploy the runner. The label is written at registration, so confirm the
+   change actually took in **Site Administration → Actions → Runners** rather
+   than assuming it did.
+5. Prove it: a workflow that runs `go version`, `node --version` and
+   `actions/checkout` to `success`.
+
+**Done when.** A workflow using the custom image reaches `success`, and the
+image tag is recorded in `devflow/README.md`.
+
+---
+
 ## What this plan deliberately leaves out
 
 These belong to subsequent plans, each of which produces working software on its own:
@@ -1133,3 +1222,4 @@ These belong to subsequent plans, each of which produces working software on its
 - A ticket can be created and commented on through the Plane API.
 - The MCP server verdict is recorded.
 - A budget-capped virtual key exists, and its exhaustion behavior has been observed and documented.
+- A workflow using the custom CI image has run to `success` on the `homelab` runner.

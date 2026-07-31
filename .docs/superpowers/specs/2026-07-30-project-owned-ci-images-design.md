@@ -88,7 +88,6 @@ the artifact-in-infrastructure problem spelled out in the image name.
 ```
 shopper/
 ├── .ci/
-│   ├── shared/homelab-root-ca.crt   # public step-ca root; committing is intended
 │   ├── api/Dockerfile               # CI: Go + golangci-lint
 │   ├── web/Dockerfile               # CI: Playwright base + pnpm
 │   ├── mobile/Dockerfile            # CI: Node + pnpm
@@ -97,15 +96,16 @@ shopper/
 │   ├── ci-images.yaml               # path-filtered; triggers Komodo
 │   ├── api.yaml                     # lint + test the Go API
 │   └── web.yaml                     # unit tests + Playwright E2E
-├── deploy/
+├── .cd/
 │   ├── api/Dockerfile               # runtime: distroless, Go binary
 │   └── web/Dockerfile               # runtime: nginx + static dist
 ```
 
-`.ci/` and `deploy/` are separate because they have different lifecycles and
-different triggers. CI images change when the toolchain changes — rarely.
-Runtime images change on every application commit. Collapsing them into one
-directory would force one path filter to serve two very different cadences.
+No committed certificate — see §4a. `.ci/` and `.cd/` are separate because they
+have different lifecycles and different triggers. CI images change when the
+toolchain changes — rarely. Runtime images change on every application commit.
+Collapsing them into one directory would force one path filter to serve two very
+different cadences.
 
 `versions.env` holds every image tag in one file:
 
@@ -118,6 +118,9 @@ CI_MOBILE_VERSION=1.0.0
 # package.json — see the lockstep constraint below. Value is set in Stage 2,
 # when package.json first exists; the number here is illustrative.
 PLAYWRIGHT_VERSION=1.56.0
+
+# SHA-256 over the DER encoding of the step-ca root — see §4a.
+STEP_CA_FINGERPRINT=8e0babaaed6ac699d4455892a4759c1e0b51102cc733d776320ad30d20259ca6
 ```
 
 Workflows read it, so a tag appears in exactly one place. Without this, the tag
@@ -130,20 +133,28 @@ two drift.
 
 | Image | Base | Contents |
 |---|---|---|
-| `shopper/ci-api` | `golang:1.26.5-bookworm` | golangci-lint 2.12.2, `GOTOOLCHAIN=local` |
+| `shopper/ci-api` | `golang:1.26.5-alpine` | golangci-lint 2.12.2, `GOTOOLCHAIN=local` |
 | `shopper/ci-web` | `mcr.microsoft.com/playwright:v<ver>-noble` | pnpm via corepack, browsers preinstalled |
-| `shopper/ci-mobile` | `node:22.23.2-bookworm-slim` | pnpm via corepack |
+| `shopper/ci-mobile` | `node:22.23.2-alpine` | pnpm via corepack |
 
-The existing `devflow/ci-images/{api,mobile}/Dockerfile` move essentially
-unchanged — the pinning discipline, the checksum-verified golangci-lint install,
-and the verification layer that fails the build when a toolchain does not match
-its pin are all worth keeping. Only the CA path and image name change.
+The existing `devflow/ci-images/{api,mobile}/Dockerfile` move with their pinning
+discipline intact — the checksum-verified golangci-lint install and the
+verification layer that fails the build when a toolchain does not match its pin
+are both worth keeping. What changes is the base, the CA mechanism (§4a), and
+the image name.
 
-`ci-web` is rebased. Today it derives from `node:22.23.2-bookworm-slim`, which
-carries no browsers. Installing Chromium and its system libraries per run costs
-minutes on every job, and `cache.enabled: false` means that cost is paid every
-time. Microsoft's Playwright image ships the browsers and the system
-dependencies already matched to a Playwright release.
+**Alpine wherever it works.** `ci-api` on Alpine is 298MB against roughly 1GB on
+bookworm. Two notes on the port: `apk --print-arch` reports `x86_64`/`aarch64`
+while golangci-lint's release assets use `amd64`/`arm64`, so the architecture
+detection differs from the dpkg version; and if the API ever needs CGO, musl will
+require `build-base` and yield musl-linked binaries.
+
+**`ci-web` is the one image that cannot be Alpine.** Playwright's docs: *"Images
+based on Alpine Linux are not supported due to differences in standard libraries
+(musl vs. glibc)."* The browser binaries are glibc-linked. It is also rebased off
+`node:*-slim`, which carries no browsers at all — installing Chromium and its
+system libraries per run costs minutes on every job, and `cache.enabled: false`
+means that cost is paid every time.
 
 Mobile gets no runtime image — React Native emits an APK/IPA, not a container.
 
@@ -153,6 +164,48 @@ Mobile gets no runtime image — React Native emits an APK/IPA, not a container.
 |---|---|---|
 | `shopper/api` | `gcr.io/distroless/static` | Multi-stage; static Go binary |
 | `shopper/web` | `nginx:alpine` | Multi-stage; serves built `dist/` |
+
+## 4a. The internal CA is fetched, never committed
+
+Images must trust the step-ca root so `git clone https://gitea.homelab/...` and
+internal HTTPS calls work. The certificate is **not** committed.
+
+A root CA certificate is not secret — it is the public half, handed to every
+client by design, and the sensitive `root_ca.key` is already a Docker secret. The
+reasons to fetch it are different: a committed copy goes stale on rotation,
+nobody diffs a `.crt` in review, and committing certs normalizes a habit that
+eventually catches a private key.
+
+**Mechanism.** Komodo's `pre_build` copies the live certificate into the build
+context; the Dockerfile verifies it against `STEP_CA_FINGERPRINT` before
+installing it. `.gitignore` keeps the staged file out of the repo.
+
+The fingerprint is what makes an automated copy safe — it pins the CA's identity,
+so a wrong or substituted file fails the build instead of producing an image that
+trusts the wrong root. It is a SHA-256 over the **DER** encoding, matching
+`step certificate fingerprint`; computing it over the PEM file bytes instead
+would never match. Being a hash of a public certificate, committing *it* is
+intended: short, self-verifying, reviewable in a diff.
+
+**Why not fetch over the network.** Investigated and rejected: `stepca.homelab`
+has no DNS record (NXDOMAIN from both a workstation and a node container — the
+`.homelab` names are individual manual A records, no wildcard), and the overlay
+`infra_public` is not attachable, so `docker build --network` is unavailable.
+A network fetch would have needed a new DNS entry plus an NPM proxy exposing the
+CA's management API to the LAN — real added surface to retrieve a certificate
+that is already public.
+
+Reading the file is also strictly more robust: `komodo-periphery` is `mode:
+global` and already bind-mounts the authoritative file (`infra/compose.yaml:372`),
+so it is present wherever a build lands, and a build cannot fail because step-ca
+happens to be down.
+
+**Bootstrap consequence.** The trigger workflow talks to `registry.homelab` and
+`komodo.homelab`, both presenting step-ca certificates that a stock image cannot
+verify. Using `-k` is not acceptable — those requests carry the registry password
+and the Komodo API secret. So the workflow runs in `ci-api`, which makes the
+first build manual: build and push `ci-api:1.0.0` by hand once, and every build
+after that is automated.
 
 ## 4. The Playwright lockstep constraint
 
@@ -191,21 +244,40 @@ that names the fix.
 shopper push touching .ci/**
   └─ .gitea/workflows/ci-images.yaml     ← supplies the path filter Komodo lacks
        ├─ guard: tag must not already exist in the registry
-       └─ curl → Komodo build webhook
+       ├─ POST /write/UpdateBuild        ← pin version from versions.env
+       └─ POST /execute/RunBuild
             └─ Komodo clones, builds, pushes → registry.homelab/shopper/*
 ```
 
 Komodo's webhooks filter by branch only. A thin path-filtered workflow supplies
-the missing filter and needs no Docker socket to do it — it only makes an HTTP
-request. It runs in a public `curlimages/curl` image, so there is no bootstrap
-loop where building the CI image requires the CI image.
+the missing filter and needs no Docker socket to do it — it only makes HTTP
+calls.
 
-One Komodo Build resource per image, each configured with:
+**Two API calls rather than one webhook.** Komodo's `auto_increment_version`
+defaults to `true`, which would make the tag unknown until after the build — so a
+workflow could never reference a new image in the same commit that creates it.
+Turning it off means the repo declares the version, which a bare webhook cannot
+convey. `UpdateBuild` pins it; `RunBuild` starts it. This needs `KOMODO_API_KEY`
+and `KOMODO_API_SECRET` as Gitea organisation secrets.
 
-- Gitea as a custom git provider, repo `Homelab/shopper`
-- `image_registry` pointing at `registry.homelab/shopper`
-- `webhook_enabled: true` with a per-build `webhook_secret`
-- Dockerfile path and build context per the layout above
+One Komodo Build resource per image:
+
+```toml
+git_provider = "gitea.homelab"
+repo = "Homelab/shopper"
+build_path = ".ci/api"
+dockerfile_path = "Dockerfile"
+image_registry = [{ domain = "registry.homelab", organization = "shopper" }]
+build_args = "STEP_CA_FINGERPRINT=<fingerprint>"
+pre_build = "cp /usr/local/share/ca-certificates/homelab-root-ca.crt .ci/api/homelab-root-ca.crt"
+auto_increment_version = false   # default true
+include_latest_tag     = false   # default true
+include_version_tags   = false   # default true
+```
+
+The three overridden defaults all publish **moving** tags — `:latest`, `:1.2`,
+`:1`. Combined with `force_pull: false` they are the silent-drift hazard below,
+so each must be off.
 
 ### Tag immutability needs enforcement, not convention
 
@@ -297,8 +369,23 @@ published `registry.homelab/shopper/ci-api:1.0.0` with no homelab change.
 on the Playwright base with its version assertion, `ci-mobile`, and both runtime
 images. Deferred because each needs application code that does not exist yet.
 
-Once Stage 1 is verified, `devflow/ci-images/` is deleted from homelab and the
-three runner configs are replaced by one.
+Once Stage 1 is verified, `devflow/ci-images/` is deleted from homelab.
+
+### Stage 1 status — 2026-07-30
+
+| Item | State |
+|---|---|
+| Runner consolidation (3 → 1, `capacity: 5`, pinned `gitea/runner:2.3.0`) | **Done**, `2021133` |
+| `shopper/.ci/api/Dockerfile` + `versions.env` + `.ci/README.md` | **Done**, `942abcf` |
+| `.gitea/workflows/ci-images.yaml` | **Done**, `942abcf` |
+| Komodo Build resource `shopper-ci-api` | Pending — needs Komodo UI/API access |
+| Gitea org secrets (registry + Komodo pairs) | Pending — operator action |
+| Bootstrap push of `ci-api:1.0.0` | Pending — needs registry credentials |
+| Delete `devflow/ci-images/` | Pending — after end-to-end verification |
+
+Verified locally against the live swarm: the image builds (298MB), a mismatched
+`STEP_CA_FINGERPRINT` fails the build closed, and the resulting image completes
+TLS to `https://gitea.homelab` without `-k`.
 
 ## 8. Error handling
 
@@ -308,17 +395,17 @@ three runner configs are replaced by one.
 | Playwright version mismatch | CI job fails naming both versions | Bump `PLAYWRIGHT_VERSION`, rebuild `ci-web` |
 | Registry auth failure | Pull fails in job container | Verify org-level Gitea secrets |
 | Komodo build failure | Komodo UI; trigger workflow already green | Read Komodo build log |
-| Webhook unreachable | `curl` fails the trigger job | Check Komodo Core health |
+| Komodo unreachable | `curl` fails the trigger job | Check Komodo Core health |
+| CA rotated | Build fails naming expected vs actual fingerprint | Re-read it; bump `STEP_CA_FINGERPRINT` |
 
-The webhook is fire-and-forget: the trigger workflow reports that Komodo was
-asked to build, not that the build succeeded. Build outcomes live in Komodo.
-Coupling them would mean polling Komodo from a workflow, which buys little given
-that a failed build simply means the tag never appears — and the tag guard
-catches that on the next attempt.
+The trigger is fire-and-forget: the workflow reports that Komodo was asked to
+build, not that the build succeeded. Build outcomes live in Komodo. Coupling them
+would mean polling Komodo from a workflow, which buys little given that a failed
+build simply means the tag never appears — and the tag guard catches that on the
+next attempt.
 
-## 9. Open items for the implementation plan
+## 9. Open items
 
-- Exact Komodo Build resource fields for a Gitea custom git provider.
 - Whether Komodo pushes to `registry.homelab` via a stored account or an
   injected credential.
 - The `noble` vs `jammy` suffix on the Playwright base tag, fixed at the moment
@@ -327,3 +414,9 @@ catches that on the next attempt.
   siblings, so the runner service's `memory: 2G` limit does not bound them —
   five concurrent Playwright jobs are unbounded on the node. Worth watching
   before raising further, per the existing note in the runner config.
+- Whether the trigger workflow should move to a purpose-built `ci-tools` image
+  rather than `ci-api`. It needs only curl, jq and the internal CA; using
+  `ci-api` pulls a Go toolchain to make four HTTP calls. Not worth a second
+  bootstrap today, but revisit if the trigger grows.
+- `gitea/gitea:1` in `devflow/compose.yaml` still floats on a major tag, unlike
+  the runner which is now pinned exactly. Out of scope here; worth a decision.
