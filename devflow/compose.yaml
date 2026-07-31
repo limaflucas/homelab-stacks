@@ -4,8 +4,6 @@ services:
   #############################################
   gitea:
     image: gitea/gitea:1
-    # Quoted: an unquoted a:b is a YAML sexagesimal candidate, and the repo's
-    # other published ports follow the same convention.
     ports:
       - "2222:22"
     environment:
@@ -89,7 +87,7 @@ services:
   gitea-runner:
     # Pinned rather than :latest. A floating runner version can change how
     # workflows execute without any change in this repo.
-    image: gitea/runner:2.3.0
+    image: gitea/runner:2
     environment:
       - TZ=America/Halifax
       - GITEA_INSTANCE_URL=http://gitea:3000
