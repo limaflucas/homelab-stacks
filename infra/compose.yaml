@@ -387,6 +387,27 @@ services:
       - onboarding_vm-docker-bragi
 
   #############################################
+  # KOMODO TELEGRAM ALERTER
+  #############################################
+  komodo-telegram-alerter:
+    image: sashabusinaro/komodo-telegram-alerter:latest
+    environment:
+      - TZ=America/Halifax
+    networks:
+      - public
+    deploy:
+      mode: global
+      restart_policy:
+        condition: on-failure
+        delay: 10s
+        max_attempts: 5
+        window: 120s
+      resources:
+        limits:
+          cpus: '0.2'
+          memory: 128M
+
+  #############################################
   # STEP-CA
   #############################################
   step-ca:

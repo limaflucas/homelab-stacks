@@ -11,6 +11,7 @@ It hosts core management, network security, authentication, and internal certifi
 ### 1. Management & Control Plane
 *   **Komodo Core** (`komodo`): The central control plane and dashboard for container and host management. Connects to `mongodb` as its database backend.
 *   **Komodo Periphery** (`periphery`): Lightweight agent deployed globally to every node (`global` mode) to monitor hosts and manage local Docker containers. Connects back to Komodo Core via WebSockets (`ws://komodo:9120`).
+*   **Komodo Telegram Alerter** (`komodo-telegram-alerter`): Stateless webhook forwarder that relays Komodo alerts to Telegram. Deployed globally (`global` mode) so alerting survives a node failure; reached by Komodo Core over the `public` overlay at `http://komodo-telegram-alerter:3000/alert`. The bot token and chat ID are supplied by Komodo as URL query parameters (interpolated from Komodo's own Secrets & Variables), so no credentials are stored in this stack.
 *   **Docker Registry** (`registry`): Private container registry for self-hosted image distribution.
 
 ### 2. Ingress & Routing
@@ -186,3 +187,14 @@ Verify reverse proxy is listening on host interfaces:
 ```bash
 docker service logs infra_npm
 ```
+
+### 8. Komodo Telegram Alerter
+Confirm the global service is running on every node:
+```bash
+docker service ps infra_komodo-telegram-alerter
+```
+Then, in the Komodo UI, add a **Custom** Alerter pointing at the service and send a test:
+```
+http://komodo-telegram-alerter:3000/alert?token=[[TELEGRAM_TOKEN]]&chat_id=[[TELEGRAM_CHAT_ID]]
+```
+Store `TELEGRAM_TOKEN` and `TELEGRAM_CHAT_ID` as Komodo Secrets/Variables, then use the alerter's **Test** button to verify a message arrives in Telegram.
