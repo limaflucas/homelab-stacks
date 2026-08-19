@@ -24,6 +24,9 @@ services:
       retries: 3
     deploy:
       replicas: 1
+      placement:
+        constraints:
+          - node.hostname != vm-docker-bragi      
       restart_policy:
         condition: on-failure
         delay: 10s
