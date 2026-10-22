@@ -1,7 +1,4 @@
 services:
-  #############################################
-  # LITELLM
-  #############################################
   litellm:
     image: ghcr.io/berriai/litellm-database:main-stable
     command: ["--config", "/app/config/config.yaml", "--port", "4000", "--num_workers", "1", "--run_gunicorn"]
@@ -9,39 +6,39 @@ services:
       - TZ=America/Halifax
       - LITELLM_LOG=INFO
       - STORE_MODEL_IN_DB=True
-      - DATABASE_URL=postgres://${LITELLM_DB_USER}:${LITELLM_DB_PASSWORD}@pgpool:5432/litellm
+      - DATABASE_URL=postgres://${LITELLM_DB_USER}:${LITELLM_DB_PASSWORD}@192.168.5.30:5432/litellm
       - LITELLM_MASTER_KEY=${LITELLM_MASTER_KEY}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
     volumes:
       - /mnt/docker-data/services/litellm/config.yaml:/app/config/config.yaml
     networks:
       - llms_private
-      - pgpool
     dns:
       - 192.168.5.19
     deploy:
       mode: replicated
       replicas: 1
-      placement:
-        constraints:
-          - node.hostname != vm-docker-bragi      
       resources:
         limits:
           cpus: '0.5'
           memory: 2G
+        reservations:
+          memory: 1G
       restart_policy:
         condition: on-failure
         delay: 10s
         max_attempts: 5
         window: 120s
 
-  # #############################################
-  # # OPEN WEBUI
-  # #############################################
+      labels:
+        - traefik.enable=true
+        - traefik.swarm.network=llms_private
+        - traefik.http.routers.litellm.rule=Host(`gtw.llm.homelab`)
+        - traefik.http.services.litellm.loadbalancer.server.port=4000
   open-webui:
     image: ghcr.io/open-webui/open-webui:main
     environment:
-      - DATABASE_URL=postgresql://${WEBUI_DB_USER}:${WEBUI_DB_PASSWORD}@pgpool:5432/openwebui
+      - DATABASE_URL=postgresql://${WEBUI_DB_USER}:${WEBUI_DB_PASSWORD}@192.168.5.30:5432/openwebui
       - WEBUI_SECRET_KEY=${WEBUI_SECRET_KEY}
       - OPENAI_API_BASE_URL=http://litellm:4000/v1
       - OPENAI_API_KEY=${LITELLM_MASTER_KEY}
@@ -51,15 +48,19 @@ services:
       - /mnt/docker-data/services/open-webui/uploads:/app/backend/uploads
     deploy:
       replicas: 1
-      placement:
-        constraints:
-          - node.hostname != vm-docker-bragi      
       resources:
         limits:
           cpus: '2'
           memory: 2G
+        reservations:
+          memory: 1G
       restart_policy:
         condition: on-failure
+      labels:
+        - traefik.enable=true
+        - traefik.swarm.network=llms_private
+        - traefik.http.routers.open-webui.rule=Host(`chat.llm.homelab`)
+        - traefik.http.services.open-webui.loadbalancer.server.port=8080
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
       interval: 30s
@@ -67,12 +68,8 @@ services:
       retries: 3
     networks:
       - llms_private
-      - pgpool
 
 networks:
   llms_private:
     external: true
     name: llms_private
-  pgpool:
-    external: true
-    name: pgpool_net

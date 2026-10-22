@@ -1,7 +1,4 @@
 services:
-  #############################################
-  # GITEA
-  #############################################
   gitea:
     image: gitea/gitea:1
     ports:
@@ -11,7 +8,7 @@ services:
       - USER_UID=1000
       - USER_GID=1000
       - GITEA__database__DB_TYPE=postgres
-      - GITEA__database__HOST=pgpool:5432
+      - GITEA__database__HOST=192.168.5.30:5432
       - GITEA__database__NAME=gitea
       - GITEA__database__USER=gitea
       - GITEA__database__PASSWD__FILE=/run/secrets/gitea_db_password
@@ -40,25 +37,25 @@ services:
     deploy:
       mode: replicated
       replicas: 1
-      placement:
-        constraints:
-          - node.hostname != vm-docker-bragi
       resources:
         limits:
           cpus: '1'
           memory: 1G
+        reservations:
+          memory: 160M
       restart_policy:
         condition: on-failure
         delay: 10s
         max_attempts: 5
         window: 120s
+      labels:
+        - traefik.enable=true
+        - traefik.swarm.network=devflow_private
+        - traefik.http.routers.gitea.rule=Host(`gitea.homelab`)
+        - traefik.http.services.gitea.loadbalancer.server.port=3000
     networks:
       - devflow_private
-      - pgpool
 
-  #############################################
-  # GITEA ACTIONS RUNNERS
-  #############################################
   gitea-runner:
     image: gitea/runner:2
     environment:
@@ -76,13 +73,12 @@ services:
     deploy:
       mode: replicated
       replicas: 1
-      placement:
-        constraints:
-          - node.hostname != vm-docker-adam
       resources:
         limits:
           cpus: '2'
           memory: 2G
+        reservations:
+          memory: 32M
       restart_policy:
         condition: on-failure
         delay: 15s
@@ -91,9 +87,6 @@ services:
     networks:
       - devflow_private
 
-  #############################################
-  # VALKEY  (Plane cache / session store)
-  #############################################
   valkey:
     image: valkey/valkey:8-alpine
     command: ["valkey-server", "--save", "60", "1", "--appendonly", "no"]
@@ -110,13 +103,12 @@ services:
     deploy:
       mode: replicated
       replicas: 1
-      placement:
-        constraints:
-          - node.hostname != vm-docker-bragi
       resources:
         limits:
           cpus: '0.5'
           memory: 512M
+        reservations:
+          memory: 32M
       restart_policy:
         condition: on-failure
         delay: 10s
@@ -125,9 +117,6 @@ services:
     networks:
       - devflow_private
 
-  #############################################
-  # RABBITMQ  (Plane background job broker)
-  #############################################
   rabbitmq:
     image: rabbitmq:3.13-management-alpine
     entrypoint:
@@ -158,13 +147,12 @@ services:
     deploy:
       mode: replicated
       replicas: 1
-      placement:
-        constraints:
-          - node.hostname != vm-docker-bragi
       resources:
         limits:
           cpus: '1'
           memory: 1G
+        reservations:
+          memory: 224M
       restart_policy:
         condition: on-failure
         delay: 10s
@@ -173,9 +161,6 @@ services:
     networks:
       - devflow_private
 
-  #############################################
-  # PLANE  (all-in-one community image)
-  #############################################
   plane:
     image: makeplane/plane-aio-community:stable
     command:
@@ -183,9 +168,6 @@ services:
       - -c
       - |
         set -e
-        # /app/logs and /app/data are bind mounts, which hides the directory
-        # tree the image ships. supervisord aborts if a program's log directory
-        # is missing, so recreate the two it needs.
         mkdir -p /app/logs/access /app/logs/error /app/data
         export DATABASE_URL="$$(cat /run/secrets/plane_db_url)"
         export SECRET_KEY="$$(cat /run/secrets/plane_secret_key)"
@@ -207,7 +189,7 @@ services:
     volumes:
       - /mnt/docker-data/services/plane/data:/app/data
       - /mnt/docker-data/services/plane/logs:/app/logs
-      - /mnt/docker-data/services/step-ca/certs/root_ca.crt:/etc/ssl/certs/homelab-ca.crt:ro
+      - /mnt/docker-data/services/homelab-ca/root_ca.crt:/etc/ssl/certs/homelab-ca.crt:ro
     secrets:
       - plane_db_url
       - plane_secret_key
@@ -223,30 +205,30 @@ services:
     deploy:
       mode: replicated
       replicas: 1
-      placement:
-        constraints:
-          - node.hostname != vm-docker-bragi      
       resources:
         limits:
           cpus: '2'
           memory: 4G
+        reservations:
+          memory: 1G
       restart_policy:
         condition: on-failure
         delay: 15s
         max_attempts: 5
         window: 300s
+      labels:
+        - traefik.enable=true
+        - traefik.swarm.network=devflow_private
+        - traefik.http.routers.plane.rule=Host(`plane.homelab`)
+        - traefik.http.services.plane.loadbalancer.server.port=80
     networks:
       - devflow_private
-      - pgpool
       - minio
 
 networks:
   devflow_private:
     external: true
     name: devflow_private
-  pgpool:
-    external: true
-    name: pgpool_net
   minio:
     external: true
     name: minio_net
@@ -258,6 +240,7 @@ secrets:
     external: true
   plane_db_url:
     external: true
+    name: plane_db_url_v2
   plane_secret_key:
     external: true
   plane_minio_access_key:

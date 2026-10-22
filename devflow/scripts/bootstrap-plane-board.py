@@ -32,12 +32,6 @@ import sys
 import urllib.error
 import urllib.request
 
-# The board topology. Order here is the intended left-to-right board order.
-#
-# Every state is owned unambiguously by either the operator or the agent, and
-# approval is expressed by *moving the card* rather than by writing a comment
-# for something to parse. The four operator gates deliberately share one colour
-# so that "the board is waiting on me" is answerable at a glance.
 GATE = "#F59E0B"
 
 STATES = [
@@ -101,8 +95,6 @@ class Plane:
                 return page
             out.extend(page.get("results", []))
             cursor = page.get("next_cursor")
-            # next_page_results is the authoritative "keep going" flag; the
-            # cursor is echoed back even on the last page.
             if not page.get("next_page_results") or cursor in seen:
                 return out
             seen.add(cursor)
@@ -175,8 +167,6 @@ def main():
             if not args.dry_run:
                 plane.call("DELETE", f"{base}{s['id']}/")
         except RuntimeError as e:
-            # Plane refuses to delete a project's default state, and any state
-            # that still has work items in it.
             print(f"  SKIPPED {s['name']}: {e}")
 
     print(f"\ncreated={created} updated={updated} unchanged={unchanged}"

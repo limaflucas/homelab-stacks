@@ -12,13 +12,12 @@ services:
     deploy:
       mode: replicated
       replicas: 1
-      placement:
-        constraints:
-          - node.hostname != vm-docker-bragi      
       resources:
         limits:
           cpus: '0.5'
           memory: 256M
+        reservations:
+          memory: 64M
 
   gotrue:
     image: appflowyinc/gotrue:latest
@@ -50,23 +49,38 @@ services:
       retries: 5
       start_period: 40s
     networks:
-      - pgpool
       - appflowy_private
     deploy:
       mode: replicated
       replicas: 1
-      placement:
-        constraints:
-          - node.hostname != vm-docker-bragi      
       resources:
         limits:
           cpus: '0.5'
           memory: 512M
+        reservations:
+          memory: 32M
+      labels:
+        - traefik.enable=true
+        - traefik.swarm.network=appflowy_private
+        - traefik.http.routers.gotrue.rule=Host(`gotrue.appflowy.homelab`)
+        - traefik.http.routers.appflowy-cloud-gotrue.rule=Host(`cloud.appflowy.homelab`) && PathPrefix(`/gotrue/`)
+        - traefik.http.routers.appflowy-cloud-gotrue.middlewares=appflowy-gotrue-strip,appflowy-gotrue-cors,appflowy-gotrue-hide-cors
+        - traefik.http.middlewares.appflowy-gotrue-hide-cors.headers.customresponseheaders.Access-Control-Allow-Origin=
+        - traefik.http.middlewares.appflowy-gotrue-hide-cors.headers.customresponseheaders.Access-Control-Allow-Credentials=
+        - traefik.http.middlewares.appflowy-gotrue-strip.stripprefix.prefixes=/gotrue
+        - traefik.http.middlewares.appflowy-gotrue-cors.headers.accesscontrolalloworiginlistregex=^https://(web|cloud|admin)\.appflowy\.homelab$$
+        - traefik.http.middlewares.appflowy-gotrue-cors.headers.accesscontrolallowmethods=GET,POST,PUT,DELETE,OPTIONS
+        - traefik.http.middlewares.appflowy-gotrue-cors.headers.accesscontrolallowheaders=Authorization,Content-Type,X-Client-Info,Apikey
+        - traefik.http.middlewares.appflowy-gotrue-cors.headers.accesscontrolallowcredentials=true
+        - traefik.http.middlewares.appflowy-gotrue-cors.headers.accesscontrolmaxage=86400
+        - traefik.http.middlewares.appflowy-gotrue-cors.headers.addvaryheader=true
+        - traefik.http.middlewares.appflowy-gotrue-cors.headers.customrequestheaders.Host=gotrue.appflowy.homelab
+        - traefik.http.services.gotrue.loadbalancer.server.port=9999
 
   appflowy-cloud:
     image: appflowyinc/appflowy_cloud:latest
     volumes:
-      - /mnt/docker-data/services/step-ca/certs/root_ca.crt:/etc/ssl/certs/ca-certificates.crt:ro
+      - /mnt/docker-data/services/homelab-ca/root_ca.crt:/etc/ssl/certs/ca-certificates.crt:ro
     environment:
       - TZ=America/Halifax
       - RUST_LOG=info
@@ -100,24 +114,27 @@ services:
       retries: 5
       start_period: 40s
     networks:
-      - pgpool
       - minio
       - appflowy_private      
     deploy:
       mode: replicated
       replicas: 1
-      placement:
-        constraints:
-          - node.hostname != vm-docker-bragi
       resources:
         limits:
           cpus: '1'
           memory: 1G
+        reservations:
+          memory: 256M
+      labels:
+        - traefik.enable=true
+        - traefik.swarm.network=appflowy_private
+        - traefik.http.routers.appflowy-cloud.rule=Host(`cloud.appflowy.homelab`)
+        - traefik.http.services.appflowy-cloud.loadbalancer.server.port=8000
 
   appflowy-admin:
     image: appflowyinc/admin_frontend:latest
     volumes:
-      - /mnt/docker-data/services/step-ca/certs/root_ca.crt:/etc/ssl/certs/ca-certificates.crt:ro
+      - /mnt/docker-data/services/homelab-ca/root_ca.crt:/etc/ssl/certs/ca-certificates.crt:ro
     environment:
       - TZ=America/Halifax
       - APPFLOWY_GOTRUE_BASE_URL=https://gotrue.appflowy.homelab
@@ -129,13 +146,17 @@ services:
     deploy:
       mode: replicated
       replicas: 1
-      placement:
-        constraints:
-          - node.hostname != vm-docker-bragi      
       resources:
         limits:
           cpus: '0.5'
           memory: 256M
+        reservations:
+          memory: 64M
+      labels:
+        - traefik.enable=true
+        - traefik.swarm.network=appflowy_private
+        - traefik.http.routers.appflowy-admin.rule=Host(`admin.appflowy.homelab`)
+        - traefik.http.services.appflowy-admin.loadbalancer.server.port=3000
 
   appflowy-web:
     image: appflowyinc/appflowy_web:latest
@@ -153,14 +174,18 @@ services:
         limits:
           cpus: '0.5'
           memory: 256M
+        reservations:
+          memory: 128M
+      labels:
+        - traefik.enable=true
+        - traefik.swarm.network=appflowy_private
+        - traefik.http.routers.appflowy-web.rule=Host(`web.appflowy.homelab`)
+        - traefik.http.services.appflowy-web.loadbalancer.server.port=3000
 
 networks:
   appflowy_private:
     external: true
     name: appflowy_private
-  pgpool:
-    external: true
-    name: pgpool_net
   minio:
     external: true
     name: minio_net

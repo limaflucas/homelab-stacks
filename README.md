@@ -1,35 +1,37 @@
-# Homelab Project
+# Homelab
 
-Welcome to the Homelab project. This repository contains Docker Swarm and Docker Compose configurations for various self-hosted applications and infrastructure services, organized into logical categories.
+Docker Swarm stacks for the homelab. Each directory is one stack, deployed under its own name.
 
-## Directory Structure
+The swarm runs on three Debian VMs, all managers: `vm-docker-zeus` (192.168.5.101), `vm-docker-adam` (.102) and `vm-docker-bragi` (.103). Service data lives on the GlusterFS volume `dockerdata`, mounted at `/mnt/docker-data` on every node.
 
-### Apps
-*   **[Grafana & Monitoring](./apps/grafana/README.md)**: Observability stack for collecting and visualizing metrics and logs (Grafana, VictoriaMetrics, VictoriaLogs, Alloy).
-*   **[LLMs](./llms/README.md)**: Open WebUI (port `8080`) and LiteLLM (port `4000`).
-*   **[Outline](./apps/outline/README.md)**: A modern team knowledge base and wiki.
-*   **[Plex](./apps/plex/)**: Media server for streaming local content.
+| Stack | Services | Purpose |
+| :--- | :--- | :--- |
+| [`infra`](./infra/README.md) | traefik, authelia, registry, komodo, periphery, minio | Ingress, SSO, registry, Komodo, S3 |
+| [`appflowy`](./appflowy/README.md) | appflowy-cloud, appflowy-web, appflowy-admin, gotrue, appflowy-redis | AppFlowy Cloud |
+| [`devflow`](./devflow/README.md) | gitea, gitea-runner, plane, rabbitmq, valkey | Git, CI and Plane board |
+| [`llms`](./llms/README.md) | litellm, open-webui | LLM gateway and chat |
+| [`mouseion`](./mouseion/README.md) | radarr, sonarr, prowlarr, sabnzbd, seerr, gluetun, gluetun-socks | Media automation behind a VPN |
+| [`my-media-aigent`](./my-media-aigent/README.md) | my-media-aigent, whisper | Telegram media bot |
+| [`vaultwarden`](./vaultwarden/README.md) | vaultwarden | Password manager |
 
-### Infrastructure
-*   **[Komodo](./infra/komodo/README.md)**: Server and container management system (Control Plane & Periphery agents).
-*   **[Nginx Proxy Manager](./infra/nginx-proxy-manager/README.md)**: Reverse proxy for managing access and SSL certificates, integrated with local CA.
-*   **[Registry](./infra/registry/README.md)**: Private Docker registry for container image hosting.
-*   **[Step-CA](./infra/step-ca/README.md)**: Private Certificate Authority for securing internal services with TLS.
+## Outside the swarm
 
-### Databases
-*   **[etcd](./databases/etcd/README.md)**: Highly available distributed key-value store, used as DCS for cluster coordination.
-*   **[MongoDB](./databases/mongodb/README.md)**: A centralized shared MongoDB replica set.
-*   **[PostgreSQL HA](./databases/postgresql/README.md)**: A highly available PostgreSQL cluster with native streaming replication and Pgpool-II.
+| Service | Proxmox guest | Address |
+| :--- | :--- | :--- |
+| PostgreSQL 18 | CT 110 adam (primary), CT 111 bragi (standby) | 192.168.5.30, .31 |
+| MongoDB 8.0 `rs0` | CT 120 adam, CT 121 zeus, CT 122 bragi | 192.168.5.40-42 |
+| step-ca | CT 130 bragi (HA to adam or zeus) | `https://stepca.homelab` |
+| pihole | CT 104 adam | `https://pihole.homelab/admin/` |
+| Plex | CT 101 adam | `http://plex.homelab` |
+| Ollama | CT 102 zeus | `zeus.ollama.homelab:11434` |
+| Proxmox UI | all nodes, through Traefik | `https://proxmox.homelab` |
 
-### Security
-*   **[Authelia](./security/authelia/README.md)**: Centralized authentication and Single Sign-On (SSO) provider.
-*   **[Vaultwarden](./security/vaultwarden/README.md)**: Self-hosted password manager compatible with Bitwarden clients.
+See [infra](./infra/README.md) for details.
 
-## Getting Started
+## Deploy
 
-To deploy a specific service, navigate to its respective directory, follow the setup instructions (like creating secret files, node labels, or configuring volumes) as detailed in its `README.md`, and run:
+From a stack's directory, after creating the secrets and directories its README lists:
 
 ```bash
-docker stack deploy -c compose.yaml <stack_name>
+docker stack deploy -c compose.yaml <stack>
 ```
-*Note: Most services in this repository are optimized for **Docker Swarm**.*

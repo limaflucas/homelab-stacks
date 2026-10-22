@@ -1,0 +1,31 @@
+http:
+  routers:
+    proxmox:
+      rule: Host(`proxmox.homelab`)
+      entryPoints:
+        - websecure
+        - proxmox
+      service: proxmox
+      tls:
+        certResolver: stepca
+  services:
+    proxmox:
+      loadBalancer:
+        serversTransport: proxmox
+        sticky:
+          cookie:
+            name: pve_node
+            secure: true
+            httpOnly: true
+        healthCheck:
+          path: /
+          interval: 10s
+          timeout: 3s
+        servers:
+          - url: https://adam.homelab:8006
+          - url: https://zeus.homelab:8006
+          - url: https://bragi.homelab:8006
+  serversTransports:
+    proxmox:
+      rootCAs:
+        - /certs/homelab-root-ca.crt

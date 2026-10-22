@@ -1,9 +1,4 @@
 model_list:
-  #############################################
-  # LOCAL — OLLAMA (zeus.ollama.homelab)
-  #############################################
-  # `ollama_chat/` (not `ollama/`) is the chat-tuned route: it uses Ollama's
-  # /api/chat endpoint, which handles multi-turn and tool calling correctly.
   - model_name: gemma4:12b
     litellm_params:
       model: ollama_chat/gemma4:12b
@@ -29,9 +24,6 @@ model_list:
       model: ollama_chat/qwen2.5-coder:7b-instruct-q5_K_M
       api_base: http://zeus.ollama.homelab:11434
 
-  #############################################
-  # ANTHROPIC — agent coding models
-  #############################################
   - model_name: claude-sonnet-5
     litellm_params:
       model: anthropic/claude-sonnet-5
