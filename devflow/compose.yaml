@@ -16,8 +16,10 @@ services:
       - GITEA__server__ROOT_URL=https://gitea.homelab/
       - GITEA__server__SSH_DOMAIN=gitea.homelab
       - GITEA__server__SSH_PORT=2222
+      - GITEA__security__ALLOWED_HOST_LIST=komodo.homelab
     volumes:
       - /mnt/docker-data/services/gitea/data:/data
+      - /mnt/docker-data/services/homelab-ca/root_ca.crt:/etc/ssl/certs/homelab-ca.crt:ro
     secrets:
       - gitea_db_password
     healthcheck:

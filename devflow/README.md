@@ -55,6 +55,7 @@ Don't add `--with-registry-auth`: it overrides the nodes' anonymous Docker Hub a
     *   Port 2222 on every node maps to the container's OpenSSH on port 22 (image `gitea/gitea:1`, not rootless).
     *   `SSH_PORT=2222` only sets the port shown in clone URLs. Don't set `SSH_LISTEN_PORT`: it only applies to Gitea's built-in SSH server.
 *   **Health:** `docker run --rm --network devflow_private curlimages/curl -sf http://gitea:3000/api/healthz`.
+*   **Webhooks:** Gitea only calls hosts listed in `[security] ALLOWED_HOST_LIST`, set to `komodo.homelab`. The mounted homelab root CA lets it verify Komodo's certificate, because Go reads every file in `/etc/ssl/certs`.
 
 ## Plane
 
