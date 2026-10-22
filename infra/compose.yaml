@@ -110,6 +110,7 @@ services:
       PERIPHERY_ONBOARDING_KEY_FILE: /run/secrets/onboarding_{{.Node.Hostname}} 
     volumes:
       - /mnt/docker-data/services/periphery/{{.Node.Hostname}}/keys:/config/keys
+      - /mnt/docker-data/services/periphery/{{.Node.Hostname}}/repos:/etc/komodo/repos
       - /var/run/docker.sock:/var/run/docker.sock
       - /proc:/proc:ro
       - /mnt/docker-data/services/komodo/keys/core.pub:/config/keys/core.pub:ro

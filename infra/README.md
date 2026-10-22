@@ -66,7 +66,7 @@ Built with the community-scripts [PostgreSQL](https://community-scripts.org/scri
 
 Host directories under `/mnt/docker-data/services/`:
 *   `komodo/{keys,backups,repos}`
-*   `periphery/<node>/keys`
+*   `periphery/<node>/{keys,repos}`. Periphery clones repos into `repos`, so they survive container restarts.
 *   `homelab-ca/root_ca.crt`
 *   `traefik/data/acme.json` (mode 600) and `traefik/dynamic`
 *   `registry`
