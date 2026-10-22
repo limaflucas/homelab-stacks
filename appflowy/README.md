@@ -50,7 +50,7 @@ ALTER DEFAULT PRIVILEGES IN SCHEMA auth GRANT SELECT, REFERENCES ON TABLES TO ap
 
 ## Environment
 
-Set these in a `.env` next to `compose.yaml` (not committed):
+Kept in the Komodo stack's environment:
 
 | Variable | Value |
 | :--- | :--- |

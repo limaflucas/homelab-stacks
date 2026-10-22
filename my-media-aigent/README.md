@@ -13,7 +13,7 @@ echo "<telegram bot token>" | docker secret create telegram_bot_token -
 echo "<whisper api key>" | docker secret create whisper_api_key -
 ```
 
-The compose file also reads `LITELLM_API_KEY`, `OVERSEERR_API_KEY`, `TELEGRAM_BOT_TOKEN` and `WHISPER_API_KEY` from a `.env` next to it (not committed):
+The compose file also reads `LITELLM_API_KEY`, `OVERSEERR_API_KEY`, `TELEGRAM_BOT_TOKEN` and `WHISPER_API_KEY`. They're kept in the Komodo stack's environment. To deploy by hand, put them in a `.env` next to `compose.yaml` (not committed):
 
 ```bash
 set -a; . ./.env; set +a

@@ -23,7 +23,7 @@ CREATE USER litellm WITH PASSWORD '<password>';
 GRANT ALL PRIVILEGES ON DATABASE litellm TO litellm;
 ```
 
-`.env` next to `compose.yaml` (not committed):
+Kept in the Komodo stack's environment:
 
 ```env
 LITELLM_DB_USER=litellm

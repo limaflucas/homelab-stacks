@@ -8,7 +8,7 @@ The swarm runs on three Debian VMs, all managers: `vm-docker-zeus` (192.168.5.10
 | :--- | :--- | :--- |
 | [`infra`](./infra/README.md) | traefik, authelia, registry, komodo, periphery, minio | Ingress, SSO, registry, Komodo, S3 |
 | [`appflowy`](./appflowy/README.md) | appflowy-cloud, appflowy-web, appflowy-admin, gotrue, appflowy-redis | AppFlowy Cloud |
-| [`devflow`](./devflow/README.md) | gitea, gitea-runner, plane, rabbitmq, valkey | Git, CI and Plane board |
+| [`devflow`](./devflow/README.md) | gitea, plane, rabbitmq, valkey | Git and Plane board |
 | [`llms`](./llms/README.md) | litellm, open-webui | LLM gateway and chat |
 | [`mouseion`](./mouseion/README.md) | radarr, sonarr, prowlarr, sabnzbd, seerr, gluetun, gluetun-socks | Media automation behind a VPN |
 | [`my-media-aigent`](./my-media-aigent/README.md) | my-media-aigent, whisper | Telegram media bot |
@@ -30,7 +30,7 @@ See [infra](./infra/README.md) for details.
 
 ## Deploy
 
-From a stack's directory, after creating the secrets and directories its README lists:
+Komodo deploys the stacks and keeps each stack's `.env` values in its environment settings. To deploy by hand from a stack's directory, after creating the secrets and directories its README lists:
 
 ```bash
 docker stack deploy -c compose.yaml <stack>

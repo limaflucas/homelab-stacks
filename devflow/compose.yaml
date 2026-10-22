@@ -16,18 +16,10 @@ services:
       - GITEA__server__ROOT_URL=https://gitea.homelab/
       - GITEA__server__SSH_DOMAIN=gitea.homelab
       - GITEA__server__SSH_PORT=2222
-      - GITEA__service__DISABLE_REGISTRATION=true
-      - GITEA__actions__ENABLED=true
-      - GITEA__actions__ZOMBIE_TASK_TIMEOUT=5m
-      - GITEA__actions__ENDLESS_TASK_TIMEOUT=45m
-      - GITEA__actions__ABANDONED_JOB_TIMEOUT=20m
-      - GITEA__cron_0X2E_cancel_abandoned_jobs__SCHEDULE=@every 10m
-      - GITEA_RUNNER_REGISTRATION_TOKEN_FILE=/run/secrets/gitea_runner_token
     volumes:
       - /mnt/docker-data/services/gitea/data:/data
     secrets:
       - gitea_db_password
-      - gitea_runner_token
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3000/api/healthz"]
       interval: 30s
@@ -53,37 +45,6 @@ services:
         - traefik.swarm.network=devflow_private
         - traefik.http.routers.gitea.rule=Host(`gitea.homelab`)
         - traefik.http.services.gitea.loadbalancer.server.port=3000
-    networks:
-      - devflow_private
-
-  gitea-runner:
-    image: gitea/runner:2
-    environment:
-      - TZ=America/Halifax
-      - GITEA_INSTANCE_URL=http://gitea:3000
-      - GITEA_RUNNER_REGISTRATION_TOKEN_FILE=/run/secrets/gitea_runner_token
-      - GITEA_RUNNER_NAME={{.Node.Hostname}}
-      - CONFIG_FILE=/config/config.yaml
-    volumes:
-      - /mnt/docker-data/services/gitea-runner/data:/data
-      - /mnt/docker-data/services/gitea-runner/config.yaml:/config/config.yaml:ro
-      - /var/run/docker.sock:/var/run/docker.sock
-    secrets:
-      - gitea_runner_token
-    deploy:
-      mode: replicated
-      replicas: 1
-      resources:
-        limits:
-          cpus: '2'
-          memory: 2G
-        reservations:
-          memory: 32M
-      restart_policy:
-        condition: on-failure
-        delay: 15s
-        max_attempts: 5
-        window: 180s
     networks:
       - devflow_private
 
@@ -174,7 +135,6 @@ services:
         export AWS_ACCESS_KEY_ID="$$(cat /run/secrets/plane_minio_access_key)"
         export AWS_SECRET_ACCESS_KEY="$$(cat /run/secrets/plane_minio_secret_key)"
         export AMQP_URL="amqp://plane:$$(cat /run/secrets/rabbitmq_password)@rabbitmq:5672/plane"
-        echo "WEBHOOK_ALLOWED_HOSTS=conductor" >> /app/plane.env
         exec /app/start.sh
     environment:
       - TZ=America/Halifax
@@ -185,6 +145,7 @@ services:
       - AWS_REGION=us-east-1
       - AWS_S3_BUCKET_NAME=plane-app
       - AWS_S3_ENDPOINT_URL=https://api.minio.homelab
+      - AWS_CA_BUNDLE=/etc/ssl/certs/homelab-ca.crt
       - FILE_SIZE_LIMIT=5242880
     volumes:
       - /mnt/docker-data/services/plane/data:/app/data
@@ -235,8 +196,6 @@ networks:
 
 secrets:
   gitea_db_password:
-    external: true
-  gitea_runner_token:
     external: true
   plane_db_url:
     external: true
