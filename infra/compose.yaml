@@ -1,9 +1,6 @@
 services:
-  #############################################
-  # MINIO
-  #############################################
   minio:
-    image: minio/minio:latest
+    image: pgsty/minio:RELEASE.2026-08-04T00-00-00Z
     hostname: "minio-{{.Node.Hostname}}"
     command: server /data --console-address ":9001"
     environment:
@@ -32,268 +29,18 @@ services:
         limits:
           cpus: '0.5'
           memory: 512M
+        reservations:
+          memory: 128M
 
-  #############################################
-  # POSTGRESQL PRIMARY
-  #############################################
-  pgsql-primary:
-    image: postgres:17
-    hostname: postgresql-{{.Node.Hostname}}
-    volumes:
-      - /opt/docker-data/databases/postgresql/data:/var/lib/postgresql/data
-      - /mnt/docker-data/services/postgresql/init:/docker-entrypoint-initdb.d
-      - /mnt/docker-data/services/postgresql/pg_hba_homelab.conf:/var/lib/postgresql/pg_hba_homelab.conf
-    environment:
-      - TZ=America/Halifax
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD_FILE=/run/secrets/postgresql_superuser_password
-      - POSTGRES_DB=postgres
-      - POSTGRES_INITDB_ARGS=--encoding=UTF8 --locale=en_US.UTF-8
-    entrypoint: [ "/bin/bash", "-c" ]
-    command:
-      - |
-        apt-get update && apt-get install -y --no-install-recommends postgresql-17-pgvector && rm -rf /var/lib/apt/lists/*
-
-        exec docker-entrypoint.sh postgres \
-          -c wal_level=replica \
-          -c hot_standby=on \
-          -c max_wal_senders=10 \
-          -c max_replication_slots=10 \
-          -c wal_keep_size=256 \
-          -c synchronous_commit=on \
-          -c archive_mode=off \
-          -c listen_addresses='*' \
-          -c max_connections=200 \
-          -c shared_buffers=512MB \
-          -c work_mem=8MB \
-          -c maintenance_work_mem=64MB \
-          -c effective_cache_size=768MB \
-          -c hba_file=/var/lib/postgresql/pg_hba_homelab.conf
-    secrets:
-      - postgresql_superuser_password
-      - postgresql_replication_password
-      - pgpool_admin_password
-    networks:
-      - public
-    deploy:
-      resources:
-        limits:
-          cpus: '1'
-          memory: 1G
-      replicas: 1
-      placement:
-        constraints:
-          - node.labels.pg == 1
-      restart_policy:
-        condition: on-failure
-        delay: 10s
-        max_attempts: 5
-        window: 120s
-
-  #############################################
-  # POSTGRESQL STANDBYS
-  #############################################
-  pgsql-standby:
-    image: postgres:17
-    hostname: postgresql-{{.Node.Hostname}}
-    volumes:
-      - /opt/docker-data/databases/postgresql/data:/var/lib/postgresql/data
-      - /mnt/docker-data/services/postgresql/pg_hba_homelab.conf:/var/lib/postgresql/pg_hba_homelab.conf
-    environment:
-      - TZ=America/Halifax
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD_FILE=/run/secrets/postgresql_superuser_password
-      - PGPASSFILE=/run/secrets/.pgpass
-    entrypoint: [ "/bin/bash", "-c" ]
-    command:
-      - |
-        apt-get update && apt-get install -y --no-install-recommends postgresql-17-pgvector && rm -rf /var/lib/apt/lists/*
-
-        # Wait for primary to be ready
-        until pg_isready -h pgsql-primary -p 5432 -U postgres; do
-          echo "Waiting for primary pgsql-primary..."
-          sleep 10
-        done
-
-        # Only run basebackup if data dir is empty
-        if [ ! -f /var/lib/postgresql/data/PG_VERSION ]; then
-          echo "Running pg_basebackup from primary..."
-          PGPASSWORD=$$(cat /run/secrets/postgresql_replication_password) \
-          pg_basebackup \
-            -h pgsql-primary \
-            -U replicator \
-            -D /var/lib/postgresql/data \
-            -P -Xs -R
-        fi
-
-        # Start postgres
-        exec docker-entrypoint.sh postgres \
-          -c hot_standby=on \
-          -c listen_addresses='*' \
-          -c max_connections=200 \
-          -c shared_buffers=512MB \
-          -c work_mem=8MB \
-          -c maintenance_work_mem=64MB \
-          -c effective_cache_size=768MB \
-          -c hba_file=/var/lib/postgresql/pg_hba_homelab.conf
-    secrets:
-      - postgresql_superuser_password
-      - postgresql_replication_password
-    networks:
-      - public
-    deploy:
-      resources:
-        limits:
-          cpus: '1'
-          memory: 1G
-      replicas: 2
-      placement:
-        max_replicas_per_node: 1
-        constraints:
-          - node.labels.pg != 1
-      restart_policy:
-        condition: on-failure
-        delay: 15s
-        max_attempts: 5
-        window: 120s
-
-  #############################################
-  # PGPOOL - Load balancer + failover
-  #############################################
-  pgpool:
-    image: docker.io/bitnamilegacy/pgpool:4
-    entrypoint: [ "/bin/bash", "-c" ]
-    command:
-      - |
-        export PGPOOL_AES_KEY=$$(cat /run/secrets/pgpool_aes_key)
-        # 1. Run setup script directly to initialize configuration (including pool_hba.conf)
-        /opt/bitnami/scripts/pgpool/setup.sh        
-
-        # 3. Disable failover on clean container shutdown, and clear any stale status file
-        echo "failover_on_backend_shutdown = off" >> /opt/bitnami/pgpool/conf/pgpool.conf
-        rm -f /opt/bitnami/pgpool/logs/pgpool_status
-
-        # 4. Run Pgpool
-        exec /opt/bitnami/scripts/pgpool/run.sh
-    volumes:
-      - /mnt/docker-data/services/pgpool/pool_passwd:/opt/bitnami/pgpool/conf/pool_passwd
-    environment:
-      - TZ=America/Halifax
-      - PGPOOL_BACKEND_NODES=0:postgresql-vm-docker-adam:5432,1:postgresql-vm-docker-zeus:5432,2:postgresql-vm-docker-bragi:5432
-      - PGPOOL_BACKEND_APPLICATION_NAMES=postgresql-vm-docker-adam,postgresql-vm-docker-zeus,postgresql-vm-docker-bragi
-      - PGPOOL_ENABLE_LOAD_BALANCING=yes
-      - PGPOOL_ENABLE_STATEMENT_LOAD_BALANCING=yes
-      - PGPOOL_DISABLE_LOAD_BALANCE_ON_WRITE=transaction
-      - PGPOOL_MAX_POOL=2
-      - PGPOOL_NUM_INIT_CHILDREN=70
-      # Streaming replication check
-      - PGPOOL_SR_CHECK_USER=pgpool
-      - PGPOOL_SR_CHECK_PASSWORD_FILE=/run/secrets/pgpool_admin_password
-      - PGPOOL_SR_CHECK_PERIOD=15
-      - PGPOOL_SR_CHECK_DATABASE=postgres
-      # Health check
-      - PGPOOL_HEALTH_CHECK_USER=pgpool
-      - PGPOOL_HEALTH_CHECK_PASSWORD_FILE=/run/secrets/pgpool_admin_password
-      - PGPOOL_HEALTH_CHECK_PERIOD=15
-      - PGPOOL_HEALTH_CHECK_TIMEOUT=10
-      - PGPOOL_HEALTH_CHECK_MAX_RETRIES=5
-      - PGPOOL_HEALTH_CHECK_RETRY_DELAY=5
-      # Failover
-      - PGPOOL_AUTO_FAILBACK=yes
-      # Admin
-      - PGPOOL_ADMIN_USERNAME=admin
-      - PGPOOL_ADMIN_PASSWORD_FILE=/run/secrets/pgpool_admin_password
-      # Backend postgres superuser
-      - PGPOOL_POSTGRES_USERNAME=postgres
-      - PGPOOL_POSTGRES_PASSWORD_FILE=/run/secrets/postgresql_superuser_password
-      - PGPOOL_ENABLE_LDAP=no
-      - PGPOOL_AUTHENTICATION_METHOD=scram-sha-256
-    secrets:
-      - pgpool_admin_password
-      - postgresql_superuser_password
-      - pgpool_aes_key
-    networks:
-      - public
-      - pgpool
-    deploy:
-      mode: replicated
-      replicas: 1
-      placement:
-        constraints:
-          - node.hostname != vm-docker-bragi
-      resources:
-        limits:
-          cpus: '0.5'
-          memory: 512M    
-      restart_policy:
-        condition: any
-        delay: 10s
-        window: 120s
-
-  #############################################
-  # MONGODB
-  #############################################
-  mongodb:
-    image: mongo:8
-    ulimits:
-      nofile:
-        soft: 64000
-        hard: 64000
-    hostname: "mongodb-{{.Node.Hostname}}"
-    entrypoint: [ "bash", "-c" ]
-    command:
-      - |
-        exec docker-entrypoint.sh mongod \
-          --quiet \
-          --replSet rs0 \
-          --bind_ip_all \
-          --wiredTigerCacheSizeGB 0.5 \
-          --keyFile /srv/mongodb/keyfile
-    secrets:
-      - mongodb_password
-      - mongodb_user
-      - source: mongodb_keyfile
-        target: /srv/mongodb/keyfile
-        uid: "999"
-        gid: "999"
-        mode: 0o400
-    environment:
-      TZ: "America/Halifax"
-      MONGO_INITDB_ROOT_USERNAME_FILE: "/run/secrets/mongodb_user"
-      MONGO_INITDB_ROOT_PASSWORD_FILE: "/run/secrets/mongodb_password"
-    volumes:
-      - /opt/docker-data/databases/mongodb/data:/data/db
-      - /opt/docker-data/databases/mongodb/config:/data/configdb
-    healthcheck:
-      test: >
-        mongosh \
-          --username "$$(cat /run/secrets/mongodb_user)" \
-          --password "$$(cat /run/secrets/mongodb_password)" \
-          --authenticationDatabase admin \
-          --eval "db.adminCommand('ping').ok" \
-          --quiet
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 45s
-    deploy:
-      mode: global
-      restart_policy:
-        condition: on-failure
-        delay: 10s
-        max_attempts: 3
-      resources:
-        limits:
-          cpus: '0.5'
-          memory: 1G
-    networks:
-      public:
-        aliases:
-          - mongodb-{{.Node.Hostname}}
-
-  #############################################
-  # KOMODO
-  #############################################
+      labels:
+        - traefik.enable=true
+        - traefik.swarm.network=infra_public
+        - traefik.http.routers.minio-api.rule=Host(`api.minio.homelab`)
+        - traefik.http.routers.minio-api.service=minio-api
+        - traefik.http.services.minio-api.loadbalancer.server.port=9000
+        - traefik.http.routers.minio-console.rule=Host(`console.minio.homelab`)
+        - traefik.http.routers.minio-console.service=minio-console
+        - traefik.http.services.minio-console.loadbalancer.server.port=9001
   komodo:
     image: ghcr.io/moghtech/komodo-core:2
     environment:
@@ -321,7 +68,7 @@ services:
     volumes:
       - /mnt/docker-data/services/komodo/keys:/config/keys
       - /mnt/docker-data/services/komodo/backups:/backups
-      - /mnt/docker-data/services/step-ca/certs/root_ca.crt:/usr/local/share/ca-certificates/homelab-root-ca.crt:ro
+      - /mnt/docker-data/services/homelab-ca/root_ca.crt:/usr/local/share/ca-certificates/homelab-root-ca.crt:ro
       - /mnt/docker-data/services/komodo/repos:/repo-cache
     healthcheck:
       test: [ "CMD", "curl", "-f", "http://localhost:9120/" ]
@@ -331,47 +78,44 @@ services:
     deploy:
       mode: replicated
       replicas: 1
-      placement:
-        constraints:
-          - node.hostname != vm-docker-bragi      
       resources:
         limits:
           cpus: '0.5'
           memory: 512M
+        reservations:
+          memory: 96M
       restart_policy:
         condition: on-failure
         delay: 10s
         max_attempts: 5
         window: 120s
+      labels:
+        - traefik.enable=true
+        - traefik.swarm.network=infra_public
+        - traefik.http.routers.komodo.rule=Host(`komodo.homelab`)
+        - traefik.http.services.komodo.loadbalancer.server.port=9120
     networks:
       - public
     dns:
       - 192.168.5.19
 
-  #############################################
-  # KOMODO PERIPHERY
-  #############################################
   periphery:
     image: ghcr.io/moghtech/komodo-periphery:2
     init: true
     environment:
       TZ: America/Halifax
-      # Use the secure WebSocket path for Komodo 2.x
       PERIPHERY_CORE_ADDRESS: "ws://komodo:9120"
-      # Templating IS supported in environment variables
       PERIPHERY_CONNECT_AS: "{{.Node.Hostname}}"
       PERIPHERY_CORE_PUBLIC_KEYS: "file:/config/keys/core.pub"
       PERIPHERY_ONBOARDING_KEY_FILE: /run/secrets/onboarding_{{.Node.Hostname}} 
     volumes:
       - /mnt/docker-data/services/periphery/{{.Node.Hostname}}/keys:/config/keys
-      # System monitoring mounts
       - /var/run/docker.sock:/var/run/docker.sock
       - /proc:/proc:ro
-      # Core Public Key and Root CA Trust
       - /mnt/docker-data/services/komodo/keys/core.pub:/config/keys/core.pub:ro
-      - /mnt/docker-data/services/step-ca/certs/root_ca.crt:/usr/local/share/ca-certificates/homelab-root-ca.crt:ro
+      - /mnt/docker-data/services/homelab-ca/root_ca.crt:/usr/local/share/ca-certificates/homelab-root-ca.crt:ro
     deploy:
-      mode: global # One container per node
+      mode: global
       restart_policy:
         condition: on-failure
         delay: 5s
@@ -379,6 +123,8 @@ services:
         limits:
           cpus: '0.5'
           memory: 128M
+        reservations:
+          memory: 64M
     networks:
       - public
     secrets:
@@ -386,136 +132,84 @@ services:
       - onboarding_vm-docker-zeus
       - onboarding_vm-docker-bragi
 
-  #############################################
-  # KOMODO TELEGRAM ALERTER
-  #############################################
-  komodo-telegram-alerter:
-    image: sashabusinaro/komodo-telegram-alerter:latest
-    environment:
-      - TZ=America/Halifax
-    networks:
-      - public
-    deploy:
-      mode: global
-      restart_policy:
-        condition: on-failure
-        delay: 10s
-        max_attempts: 5
-        window: 120s
-      resources:
-        limits:
-          cpus: '0.2'
-          memory: 128M
-
-  #############################################
-  # STEP-CA
-  #############################################
-  step-ca:
-    image: smallstep/step-ca:latest
-    environment:
-      - TZ=America/Halifax
-      - DOCKER_STEPCA_INIT_NAME=Homelab CA
-      - DOCKER_STEPCA_INIT_DNS_NAMES=step-ca,stepca.homelab,localhost
-      - DOCKER_STEPCA_INIT_PROVISIONER_NAME=step-ca
-      - DOCKER_STEPCA_INIT_ACME=true
-      - DOCKER_STEPCA_INIT_REMOTE_MANAGEMENT=true
-      - DOCKER_STEPCA_INIT_PASSWORD_FILE=/run/secrets/root_ca_key_password
-    volumes:
-      - /mnt/docker-data/services/step-ca:/home/step
-    secrets:
-      - source: step_ca_password
-        target: root_ca_key_password
-        uid: "1000"
-        gid: "1000"
-      - source: step_ca_root_ca_key
-        target: root_ca_key
-        uid: "1000"
-        gid: "1000"
-      - source: step_ca_root_ca_crt
-        target: root_ca.crt
-        uid: "1000"
-        gid: "1000"
-    networks:
-      - public
-    deploy:
-      replicas: 1
-      resources:
-        limits:
-          cpus: '0.2'
-          memory: 512M
-    healthcheck:
-      test: [ "CMD", "step", "ca", "health", "--ca-url", "https://localhost:9000" ]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 2m
-
-  #############################################
-  # NGINX PROXY MANAGER
-  #############################################
-  npm:
-    image: 'jc21/nginx-proxy-manager:latest'
-    ulimits:
-      nofile:
-        soft: 64000
-        hard: 64000
-    entrypoint: [ "/bin/bash", "-c" ]
+  traefik:
+    image: traefik:v3.7
     command:
-      - |
-        export DB_POSTGRES_PASSWORD=$$(cat /run/secrets/npm_db_password)
-        exec /init
+      - --global.checkNewVersion=false
+      - --global.sendAnonymousUsage=false
+      - --log.level=INFO
+      - --api.dashboard=true
+      - --providers.swarm.endpoint=unix:///var/run/docker.sock
+      - --providers.swarm.exposedByDefault=false
+      - --providers.swarm.network=infra_public
+      - --providers.file.directory=/etc/traefik/dynamic
+      - --providers.file.watch=true
+      - --entryPoints.web.address=:80
+      - --entryPoints.web.http.aliasHeadersStrategy=delete
+      - --entryPoints.web.http.redirections.entryPoint.to=websecure
+      - --entryPoints.web.http.redirections.entryPoint.scheme=https
+      - --entryPoints.web.http.redirections.entryPoint.priority=1
+      - --entryPoints.websecure.address=:443
+      - --entryPoints.websecure.http.aliasHeadersStrategy=delete
+      - --entryPoints.websecure.asDefault=true
+      - --entryPoints.websecure.http.tls.certResolver=stepca
+      - --entryPoints.websecure.transport.respondingTimeouts.readTimeout=0
+      - --entryPoints.proxmox.address=:8006
+      - --entryPoints.proxmox.transport.respondingTimeouts.readTimeout=0
+      - --certificatesResolvers.stepca.acme.caServer=https://stepca.homelab/acme/acme/directory
+      - --certificatesResolvers.stepca.acme.caCertificates=/certs/homelab-root-ca.crt
+      - --certificatesResolvers.stepca.acme.email=traefik@homelab
+      - --certificatesResolvers.stepca.acme.storage=/data/acme.json
+      - --certificatesResolvers.stepca.acme.keyType=EC256
+      - --certificatesResolvers.stepca.acme.certificatesDuration=24
+      - --certificatesResolvers.stepca.acme.httpChallenge.entryPoint=web
     ports:
-      - 80:80
-      - 443:443
-      - 81:81
+      - target: 80
+        published: 80
+        protocol: tcp
+        mode: ingress
+      - target: 443
+        published: 443
+        protocol: tcp
+        mode: ingress
+      - target: 8006
+        published: 8006
+        protocol: tcp
+        mode: ingress
     environment:
       TZ: 'America/Halifax'
-      LE_SERVER: 'https://step-ca:9000/acme/acme/directory'
-      DISABLE_IPV6: 'true'
-      DB_POSTGRES_HOST: pgpool
-      DB_POSTGRES_PORT: 5432
-      DB_POSTGRES_USER: npm
-      DB_POSTGRES_NAME: npm
     volumes:
-      - /mnt/docker-data/services/nginx-proxy-manager/data:/data
-      - /mnt/docker-data/services/nginx-proxy-manager/letsencrypt:/etc/letsencrypt
-      - /mnt/docker-data/services/nginx-proxy-manager/custom-init/99-trust-ca.sh:/etc/cont-init.d/99-trust-ca.sh:ro
-      - /mnt/docker-data/services/step-ca/certs/root_ca.crt:/usr/local/share/ca-certificates/homelab-root-ca.crt:ro
-    secrets:
-      - npm_db_password
-    healthcheck:
-      test: [ "CMD", "/usr/bin/check-health" ]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 2m
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /mnt/docker-data/services/traefik/data:/data
+      - /mnt/docker-data/services/traefik/dynamic:/etc/traefik/dynamic:ro
+      - /mnt/docker-data/services/homelab-ca/root_ca.crt:/certs/homelab-root-ca.crt:ro
     deploy:
       mode: replicated
       replicas: 1
-      placement:
-        constraints:
-          - node.hostname != vm-docker-bragi      
       restart_policy:
         condition: any
         delay: 5s
-        max_attempts: 5
-        window: 120s
       resources:
         limits:
-          cpus: '0.5'
+          cpus: '1'
           memory: 512M
+        reservations:
+          memory: 64M
+      labels:
+        - traefik.enable=true
+        - traefik.http.routers.dashboard.rule=Host(`traefik.authelia.homelab`)
+        - traefik.http.routers.dashboard.service=api@internal
+        - traefik.http.routers.dashboard.middlewares=authelia@swarm
+        - traefik.http.routers.dashboard.tls.certresolver=stepca
+        - traefik.http.services.traefik.loadbalancer.server.port=8080
     networks:
       public:
-        aliases:
-          - npm.homelab
       mouseion_private:
       vaultwarden_private:
       appflowy_private:
       llms_private:
+      devflow_private:
 
-  #############################################
-  # REGISTRY
-  #############################################
   registry:
     image: registry:2
     ulimits:
@@ -526,11 +220,8 @@ services:
       TZ: America/Halifax
       REGISTRY_LOG_LEVEL: warn
       REGISTRY_STORAGE_DELETE_ENABLED: 'true'
-      # HTTP secret is used to sign state. Important if scaled.
       REGISTRY_HTTP_SECRET_FILE: /run/secrets/registry_http_secret
-      # Support running behind reverse proxies
       REGISTRY_HTTP_RELATIVEURLS: 'true'
-      # htpasswd basic authentication config
       REGISTRY_AUTH: htpasswd
       REGISTRY_AUTH_HTPASSWD_REALM: 'Homelab Registry Realm'
       REGISTRY_AUTH_HTPASSWD_PATH: /run/secrets/registry_htpasswd
@@ -554,12 +245,16 @@ services:
         limits:
           cpus: '0.5'
           memory: 512M
+        reservations:
+          memory: 64M
+      labels:
+        - traefik.enable=true
+        - traefik.swarm.network=infra_public
+        - traefik.http.routers.registry.rule=Host(`registry.homelab`)
+        - traefik.http.services.registry.loadbalancer.server.port=5000
     networks:
       - public
 
-  #############################################
-  # AUTHELIA
-  #############################################
   authelia:
     image: authelia/authelia:latest
     environment:
@@ -583,21 +278,28 @@ services:
         limits:
           cpus: '0.5'
           memory: 256M
+        reservations:
+          memory: 64M
       restart_policy:
         condition: on-failure
         delay: 5s
         max_attempts: 5
         window: 120s
+      labels:
+        - traefik.enable=true
+        - traefik.swarm.network=infra_public
+        - traefik.http.routers.authelia.rule=Host(`auth.authelia.homelab`) || Host(`authelia.homelab`) || Host(`redirect.authelia.homelab`)
+        - traefik.http.services.authelia.loadbalancer.server.port=9091
+        - traefik.http.middlewares.authelia.forwardauth.address=http://authelia:9091/api/authz/forward-auth
+        - traefik.http.middlewares.authelia.forwardauth.trustForwardHeader=true
+        - traefik.http.middlewares.authelia.forwardauth.authResponseHeaders=Remote-User,Remote-Groups,Remote-Email,Remote-Name
+        - traefik.http.middlewares.authelia.forwardauth.maxResponseBodySize=1048576
     networks:
       - public
 
 networks:
   public:
     driver: overlay
-  pgpool:
-    driver: overlay
-    name: pgpool_net
-    attachable: true
   minio:
     driver: overlay
     name: minio_net
@@ -618,55 +320,31 @@ networks:
     driver: overlay
     name: llms_private
     attachable: true
+  devflow_private:
+    driver: overlay
+    name: devflow_private
+    attachable: true
 
 secrets:
-  # Databases Secrets
-  postgresql_superuser_password:
-    external: true
-  postgresql_replication_password:
-    external: true
-  pgpool_admin_password:
-    external: true
-  pgpool_aes_key:
-    external: true
-  mongodb_password:
-    external: true
-  mongodb_user:
-    external: true
-  mongodb_keyfile:
-    external: true
-  # Komodo Secrets
   komodo_db_uri:
     external: true
+    name: komodo_db_uri_v2
   komodo_webhook_secret:
     external: true
   komodo_jwt_secret:
     external: true
   komodo_oidc_client_secret:
     external: true
-  # Periphery
   onboarding_vm-docker-adam:
     external: true
   onboarding_vm-docker-zeus:
     external: true
   onboarding_vm-docker-bragi:
     external: true
-  # Step CA Secrets
-  step_ca_password:
-    external: true
-  step_ca_root_ca_key:
-    external: true
-  step_ca_root_ca_crt:
-    external: true
-  # Nginx Proxy Manager Secrets
-  npm_db_password:
-    external: true
-  # Registry Secrets
   registry_http_secret:
     external: true
   registry_htpasswd:
     external: true
-  # Authelia Secrets
   authelia_jwt_secret:
     external: true
   authelia_session_secret:
@@ -677,7 +355,6 @@ secrets:
     external: true
   authelia_oidc_hmac_secret:
     external: true
-  # MinIO Secrets
   minio_root_user:
     external: true
   minio_root_password:

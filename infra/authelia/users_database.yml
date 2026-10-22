@@ -1,11 +1,3 @@
-###############################################################
-#                 Authelia Users Database                     #
-###############################################################
-
-# Use this file to define your users if you are using the 'file' authentication backend.
-# Passwords must be hashed.
-# You can generate a hash using: docker run authelia/authelia:latest authelia crypto hash ssha512 --password yourpassword
-
 users:
   admin:
     displayname: "Administrator"

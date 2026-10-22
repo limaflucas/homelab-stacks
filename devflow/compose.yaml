@@ -1,0 +1,251 @@
+services:
+  gitea:
+    image: gitea/gitea:1
+    ports:
+      - "2222:22"
+    environment:
+      - TZ=America/Halifax
+      - USER_UID=1000
+      - USER_GID=1000
+      - GITEA__database__DB_TYPE=postgres
+      - GITEA__database__HOST=192.168.5.30:5432
+      - GITEA__database__NAME=gitea
+      - GITEA__database__USER=gitea
+      - GITEA__database__PASSWD__FILE=/run/secrets/gitea_db_password
+      - GITEA__server__DOMAIN=gitea.homelab
+      - GITEA__server__ROOT_URL=https://gitea.homelab/
+      - GITEA__server__SSH_DOMAIN=gitea.homelab
+      - GITEA__server__SSH_PORT=2222
+      - GITEA__service__DISABLE_REGISTRATION=true
+      - GITEA__actions__ENABLED=true
+      - GITEA__actions__ZOMBIE_TASK_TIMEOUT=5m
+      - GITEA__actions__ENDLESS_TASK_TIMEOUT=45m
+      - GITEA__actions__ABANDONED_JOB_TIMEOUT=20m
+      - GITEA__cron_0X2E_cancel_abandoned_jobs__SCHEDULE=@every 10m
+      - GITEA_RUNNER_REGISTRATION_TOKEN_FILE=/run/secrets/gitea_runner_token
+    volumes:
+      - /mnt/docker-data/services/gitea/data:/data
+    secrets:
+      - gitea_db_password
+      - gitea_runner_token
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/healthz"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 90s
+    deploy:
+      mode: replicated
+      replicas: 1
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
+        reservations:
+          memory: 160M
+      restart_policy:
+        condition: on-failure
+        delay: 10s
+        max_attempts: 5
+        window: 120s
+      labels:
+        - traefik.enable=true
+        - traefik.swarm.network=devflow_private
+        - traefik.http.routers.gitea.rule=Host(`gitea.homelab`)
+        - traefik.http.services.gitea.loadbalancer.server.port=3000
+    networks:
+      - devflow_private
+
+  gitea-runner:
+    image: gitea/runner:2
+    environment:
+      - TZ=America/Halifax
+      - GITEA_INSTANCE_URL=http://gitea:3000
+      - GITEA_RUNNER_REGISTRATION_TOKEN_FILE=/run/secrets/gitea_runner_token
+      - GITEA_RUNNER_NAME={{.Node.Hostname}}
+      - CONFIG_FILE=/config/config.yaml
+    volumes:
+      - /mnt/docker-data/services/gitea-runner/data:/data
+      - /mnt/docker-data/services/gitea-runner/config.yaml:/config/config.yaml:ro
+      - /var/run/docker.sock:/var/run/docker.sock
+    secrets:
+      - gitea_runner_token
+    deploy:
+      mode: replicated
+      replicas: 1
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+        reservations:
+          memory: 32M
+      restart_policy:
+        condition: on-failure
+        delay: 15s
+        max_attempts: 5
+        window: 180s
+    networks:
+      - devflow_private
+
+  valkey:
+    image: valkey/valkey:8-alpine
+    command: ["valkey-server", "--save", "60", "1", "--appendonly", "no"]
+    environment:
+      - TZ=America/Halifax
+    volumes:
+      - /mnt/docker-data/services/valkey:/data
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    deploy:
+      mode: replicated
+      replicas: 1
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          memory: 32M
+      restart_policy:
+        condition: on-failure
+        delay: 10s
+        max_attempts: 5
+        window: 120s
+    networks:
+      - devflow_private
+
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+    entrypoint:
+      - /bin/bash
+      - -c
+      - |
+        set -e
+        cat > /etc/rabbitmq/conf.d/20-plane.conf <<EOF
+        default_user = plane
+        default_pass = $$(cat /run/secrets/rabbitmq_password)
+        default_vhost = plane
+        EOF
+        chown rabbitmq:rabbitmq /etc/rabbitmq/conf.d/20-plane.conf
+        chmod 400 /etc/rabbitmq/conf.d/20-plane.conf
+        exec docker-entrypoint.sh rabbitmq-server
+    environment:
+      - TZ=America/Halifax
+    volumes:
+      - /mnt/docker-data/services/rabbitmq:/var/lib/rabbitmq
+    secrets:
+      - rabbitmq_password
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    deploy:
+      mode: replicated
+      replicas: 1
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
+        reservations:
+          memory: 224M
+      restart_policy:
+        condition: on-failure
+        delay: 10s
+        max_attempts: 5
+        window: 120s
+    networks:
+      - devflow_private
+
+  plane:
+    image: makeplane/plane-aio-community:stable
+    command:
+      - /bin/bash
+      - -c
+      - |
+        set -e
+        mkdir -p /app/logs/access /app/logs/error /app/data
+        export DATABASE_URL="$$(cat /run/secrets/plane_db_url)"
+        export SECRET_KEY="$$(cat /run/secrets/plane_secret_key)"
+        export AWS_ACCESS_KEY_ID="$$(cat /run/secrets/plane_minio_access_key)"
+        export AWS_SECRET_ACCESS_KEY="$$(cat /run/secrets/plane_minio_secret_key)"
+        export AMQP_URL="amqp://plane:$$(cat /run/secrets/rabbitmq_password)@rabbitmq:5672/plane"
+        echo "WEBHOOK_ALLOWED_HOSTS=conductor" >> /app/plane.env
+        exec /app/start.sh
+    environment:
+      - TZ=America/Halifax
+      - DOMAIN_NAME=plane.homelab
+      - APP_PROTOCOL=https
+      - SITE_ADDRESS=:80
+      - REDIS_URL=redis://valkey:6379/0
+      - AWS_REGION=us-east-1
+      - AWS_S3_BUCKET_NAME=plane-app
+      - AWS_S3_ENDPOINT_URL=https://api.minio.homelab
+      - FILE_SIZE_LIMIT=5242880
+    volumes:
+      - /mnt/docker-data/services/plane/data:/app/data
+      - /mnt/docker-data/services/plane/logs:/app/logs
+      - /mnt/docker-data/services/homelab-ca/root_ca.crt:/etc/ssl/certs/homelab-ca.crt:ro
+    secrets:
+      - plane_db_url
+      - plane_secret_key
+      - plane_minio_access_key
+      - plane_minio_secret_key
+      - rabbitmq_password
+    healthcheck:
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/localhost/80"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 180s
+    deploy:
+      mode: replicated
+      replicas: 1
+      resources:
+        limits:
+          cpus: '2'
+          memory: 4G
+        reservations:
+          memory: 1G
+      restart_policy:
+        condition: on-failure
+        delay: 15s
+        max_attempts: 5
+        window: 300s
+      labels:
+        - traefik.enable=true
+        - traefik.swarm.network=devflow_private
+        - traefik.http.routers.plane.rule=Host(`plane.homelab`)
+        - traefik.http.services.plane.loadbalancer.server.port=80
+    networks:
+      - devflow_private
+      - minio
+
+networks:
+  devflow_private:
+    external: true
+    name: devflow_private
+  minio:
+    external: true
+    name: minio_net
+
+secrets:
+  gitea_db_password:
+    external: true
+  gitea_runner_token:
+    external: true
+  plane_db_url:
+    external: true
+    name: plane_db_url_v2
+  plane_secret_key:
+    external: true
+  plane_minio_access_key:
+    external: true
+  plane_minio_secret_key:
+    external: true
+  rabbitmq_password:
+    external: true

@@ -1,0 +1,64 @@
+services:
+  my-media-aigent:
+    image: registry.homelab/homelab/my-media-aigent:latest
+    environment:
+      - TZ=America/Halifax
+      - DEFAULT_LLM_MODEL=gemma4:e4b
+      - LITELLM_BASE_URL=http://litellm:4000/v1
+      - LITELLM_API_KEY=${LITELLM_API_KEY}
+      - OVERSEERR_URL=http://seerr:5055
+      - OVERSEERR_API_KEY=${OVERSEERR_API_KEY}
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+    secrets:
+      - overseerr_api_key
+      - telegram_bot_token
+    networks:
+      - llms_private
+      - mouseion_private
+    deploy:
+      mode: replicated
+      replicas: 1
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+        reservations:
+          memory: 128M
+
+  whisper:
+    image: hwdsl2/whisper-server:latest
+    environment:
+      - TZ=America/Halifax
+      - MODEL=base
+      - COMPUTE_TYPE=int8
+      - WHISPER_DEVICE=cpu
+      - WHISPER_API_KEY=${WHISPER_API_KEY}
+    secrets:
+      - whisper_api_key
+    volumes:
+      - /mnt/docker-data/services/my-media-aigent/whisper:/var/lib/whisper
+    networks:
+      - llms_private
+      - mouseion_private
+    deploy:
+      mode: replicated
+      replicas: 1
+      resources:
+        reservations:
+          memory: 1G
+
+networks:
+  llms_private:
+    external: true
+    name: llms_private
+  mouseion_private:
+    external: true
+    name: mouseion_private
+
+secrets:
+  overseerr_api_key:
+    external: true
+  telegram_bot_token:
+    external: true
+  whisper_api_key:
+    external: true
