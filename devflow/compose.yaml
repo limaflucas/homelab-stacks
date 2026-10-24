@@ -188,6 +188,53 @@ services:
       - devflow_private
       - minio
 
+  unleash:
+    image: unleashorg/unleash-server:8.2.1
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        set -a
+        . /run/secrets/unleash.env
+        set +a
+        exec docker-entrypoint.sh node dist/server.js
+    environment:
+      - TZ=America/Halifax
+      - UNLEASH_URL=https://unleash.homelab
+      - DATABASE_SSL=false
+      - SEND_TELEMETRY=false
+      - LOG_LEVEL=warn
+    secrets:
+      - source: unleash_env
+        target: unleash.env
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:4242/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+    deploy:
+      mode: replicated
+      replicas: 1
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 192M
+      restart_policy:
+        condition: on-failure
+        delay: 10s
+        max_attempts: 5
+        window: 120s
+      labels:
+        - traefik.enable=true
+        - traefik.swarm.network=devflow_private
+        - traefik.http.routers.unleash.rule=Host(`unleash.homelab`)
+        - traefik.http.services.unleash.loadbalancer.server.port=4242
+    networks:
+      - devflow_private
+      - unleash
+
 networks:
   devflow_private:
     external: true
@@ -195,6 +242,10 @@ networks:
   minio:
     external: true
     name: minio_net
+  unleash:
+    driver: overlay
+    name: unleash
+    attachable: true
 
 secrets:
   gitea_db_password:
@@ -210,3 +261,6 @@ secrets:
     external: true
   rabbitmq_password:
     external: true
+  unleash_env:
+    external: true
+    name: unleash_env_v1

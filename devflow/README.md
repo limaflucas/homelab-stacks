@@ -1,18 +1,19 @@
 # devflow
 
-Gitea (Git hosting) and Plane (kanban board).
+Gitea (Git hosting), Plane (kanban board) and Unleash (feature flags).
 
 | Service | Purpose |
 | :--- | :--- |
 | `gitea` | `https://gitea.homelab`, SSH on port 2222 |
 | `plane` | `https://plane.homelab` |
 | `valkey`, `rabbitmq` | Plane's cache and job broker |
+| `unleash` | `https://unleash.homelab`, feature flags for cahier and rhuthmos |
 
-The `gitea` and `plane` databases are on PostgreSQL (192.168.5.30). Plane stores files in the MinIO bucket `plane-app`.
+The `gitea`, `plane` and `unleash` databases are on PostgreSQL (192.168.5.30). Plane stores files in the MinIO bucket `plane-app`.
 
 ## Setup
 
-On the PostgreSQL primary. Both apps run migrations, so they must own their databases.
+On the PostgreSQL primary. The apps run migrations, so they must own their databases.
 
 ```sql
 CREATE DATABASE gitea;
@@ -21,6 +22,9 @@ ALTER DATABASE gitea OWNER TO gitea;
 CREATE DATABASE plane;
 CREATE USER plane WITH PASSWORD '<password>';
 ALTER DATABASE plane OWNER TO plane;
+CREATE DATABASE unleash;
+CREATE USER unleash WITH PASSWORD '<password>';
+ALTER DATABASE unleash OWNER TO unleash;
 ```
 
 Create a private MinIO bucket `plane-app` with its own access key. Then create the secrets. Use `printf '%s'`, because a trailing newline breaks authentication:
@@ -32,6 +36,9 @@ printf '%s' "$(openssl rand -hex 32)" | docker secret create plane_secret_key -
 printf '%s' '<minio access key>' | docker secret create plane_minio_access_key -
 printf '%s' '<minio secret key>' | docker secret create plane_minio_secret_key -
 printf '%s' "$(openssl rand -hex 24)" | docker secret create rabbitmq_password -
+printf "DATABASE_URL='%s'\nUNLEASH_SECRET='%s'\nUNLEASH_DEFAULT_ADMIN_USERNAME='%s'\nUNLEASH_DEFAULT_ADMIN_PASSWORD='%s'\nINIT_ADMIN_API_TOKENS='%s'\n" \
+  'postgres://unleash:<password>@192.168.5.30:5432/unleash' "$(openssl rand -hex 32)" admin '<admin password>' "*:*.$(openssl rand -hex 32)" \
+  | docker secret create unleash_env_v1 -
 ```
 
 Host directories under `/mnt/docker-data/services/`:
@@ -72,3 +79,12 @@ The image is `makeplane/plane-aio-community:stable`. The `command:` wrapper work
 **RabbitMQ:**
 *   Its `_FILE` variables abort startup. Instead, the entrypoint writes the credentials to `/etc/rabbitmq/conf.d/20-plane.conf`, owned by `rabbitmq` and set with `chmod` rather than `umask`. Then it runs `docker-entrypoint.sh rabbitmq-server`.
 *   The credentials only apply on first boot. To rotate `rabbitmq_password`, clear `/mnt/docker-data/services/rabbitmq`.
+
+## Unleash
+
+Feature flags for the apps that deploy from Gitea. The image is `unleashorg/unleash-server:8.2.1`.
+*   **Secret:** `unleash_env_v1` is an env file. The `entrypoint:` wrapper sources it, because the image has no `_FILE` support.
+*   **One project:** the open-source edition has only the `default` project and the `development` and `production` environments, so every app shares one list of flags. Name them after the app: `cahier-<name>`, `rhuthmos-<name>`.
+*   **Clients:** a stack joins the external `unleash` network, which this stack declares, and calls `http://devflow_unleash:4242/api`. Server SDKs use a backend token; browsers go through their app's own server or proxy with a frontend token, never a token in the bundle.
+*   **Tokens:** each app gets its own, from the admin API (`POST /api/admin/api-tokens`) or the UI. `INIT_*_API_TOKENS` only apply to an empty database.
+*   **Health:** `docker run --rm --network unleash curlimages/curl -sf http://devflow_unleash:4242/health`, or `https://unleash.homelab/health`.
