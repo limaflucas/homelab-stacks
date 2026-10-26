@@ -20,10 +20,8 @@ services:
         reservations:
           memory: 32M
       restart_policy:
-        condition: on-failure
+        condition: any
         delay: 10s
-        max_attempts: 5
-        window: 120s
       labels:
         - traefik.enable=true
         - traefik.swarm.network=vaultwarden_private

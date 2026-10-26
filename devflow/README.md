@@ -88,5 +88,5 @@ Feature flags for the apps that deploy from Gitea. The image is `unleashorg/unle
 *   **Clients:** a stack joins the external `unleash` network, which this stack declares, and calls `http://devflow_unleash:4242/api`. Server SDKs use a backend token; browsers go through their app's own server or proxy with a frontend token, never a token in the bundle.
 *   **Tokens:** each app gets its own, from the admin API (`POST /api/admin/api-tokens`) or the UI. `INIT_*_API_TOKENS` only apply to an empty database.
 *   **Health:** `docker run --rm --network unleash curlimages/curl -sf http://devflow_unleash:4242/health`, or `https://unleash.homelab/health`.
-*   **Restarts:** `condition: any`, unlike the rest of this stack. Every app's flags read as off while Unleash is down, so it keeps retrying until Postgres is back instead of giving up after five attempts.
+*   **Restarts:** `condition: any`, like every service (see [Restarts](../README.md#restarts)). It matters most here: every app's flags read as off while Unleash is down, so it keeps retrying until Postgres is back.
 *   **Order:** deploy devflow before any app stack that uses Unleash. It creates the `unleash` network, and an app stack deploy aborts without it. `docker stack rm devflow` cannot remove that network while an app is still attached; the next devflow deploy reuses it.
