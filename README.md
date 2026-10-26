@@ -35,3 +35,7 @@ Komodo deploys the stacks and keeps each stack's `.env` values in its environmen
 ```bash
 docker stack deploy -c compose.yaml <stack>
 ```
+
+## Restarts
+
+Every service uses `restart_policy` `condition: any`, with no `max_attempts`. With `on-failure`, a container that exits with code 0 is never restarted. With `max_attempts`, the swarm stops after a few failed starts or rate-limited image pulls. Either way, a service the swarm moves after losing a node can stay at 0/1. That left Gitea, sonarr and sabnzbd down on 2026-10-26, after the bragi VM was killed.

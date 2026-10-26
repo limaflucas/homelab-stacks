@@ -38,10 +38,8 @@ services:
         reservations:
           memory: 160M
       restart_policy:
-        condition: on-failure
+        condition: any
         delay: 10s
-        max_attempts: 5
-        window: 120s
       labels:
         - traefik.enable=true
         - traefik.swarm.network=devflow_private
@@ -73,10 +71,8 @@ services:
         reservations:
           memory: 32M
       restart_policy:
-        condition: on-failure
+        condition: any
         delay: 10s
-        max_attempts: 5
-        window: 120s
     networks:
       - devflow_private
 
@@ -117,10 +113,8 @@ services:
         reservations:
           memory: 224M
       restart_policy:
-        condition: on-failure
+        condition: any
         delay: 10s
-        max_attempts: 5
-        window: 120s
     networks:
       - devflow_private
 
@@ -175,10 +169,8 @@ services:
         reservations:
           memory: 1G
       restart_policy:
-        condition: on-failure
+        condition: any
         delay: 15s
-        max_attempts: 5
-        window: 300s
       labels:
         - traefik.enable=true
         - traefik.swarm.network=devflow_private
